@@ -17,7 +17,7 @@ export default function CustomerInfo() {
 
                 <input
                     type="text"
-                    placeholder="Phone number"
+                    placeholder="Customer Name"
                     autoComplete="aaaa"
 
                     className="w-full px-4 py-3 bg-gray-50 text-gray-500 rounded-xl border border-gray-200 focus:outline-none  transition focus:ring duration-300 ease-in-out focus:ring-blue-400"

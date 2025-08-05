@@ -65,12 +65,13 @@ export default function StatusPills({
              hover:scale-105 hover:shadow-md
              disabled:opacity-50 disabled:cursor-not-allowed
              ${isSelected
-                            ? 'ring-4 ring-blue-300 ring-opacity-50 shadow-lg scale-105'
+                            ? 'shadow-lg scale-105'
                             : 'hover:shadow-md'
                         }
            `}
                         style={{
                             backgroundColor: colors.bg,
+                            opacity: isSelected ? 1 : 0.5,
                             color: colors.text
                         }}
                     >
