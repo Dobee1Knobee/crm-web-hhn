@@ -6,6 +6,7 @@ import Cities from "@/app/form/components/OrderForm/components/Cities";
 import {useEffect} from "react";
 import OrderDescription from "@/app/form/components/OrderForm/components/OrderDescription";
 import ServicesWindow from "@/app/form/components/OrderForm/components/ServicesWindow";
+import Masters from "@/app/form/components/OrderForm/components/Masters";
 
 interface Props {
     user: User;
@@ -14,7 +15,7 @@ interface Props {
 
 export default function OrderForm({ user, leadId }: Props) {
     const team = user?.team?.toString() ?? 'A';
-
+    const city  = "New_York"
     useEffect(() => {
         console.log(team)
     })
@@ -24,6 +25,7 @@ export default function OrderForm({ user, leadId }: Props) {
             <CustomerInfo/>
             <DateAndTime/>
             <Cities team={team} />
+            <Masters team={team} city={city} />
             <OrderDescription/>
             <ServicesWindow/>
         </div>

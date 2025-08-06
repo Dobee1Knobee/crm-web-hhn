@@ -2,7 +2,10 @@ export const serviceCatalog = {
     workTypes: [
         { label: "Standard", value: "tv_std", price: 0 },
         { label: "Large", value: "tv_big", price: 0 },
-        { label: "Large x2", value: "tv_big2", price: 0 }
+        { label: "Large x2", value: "tv_big2", price: 0 },
+        {label : "NO TV", value: "noTV", price: 0 },
+        {label : "Custom", value: "custom", price: 0 },
+
     ],
     additionalServices: [
         { label: "Dismount TV", value: "unmount_tv", price: 49 },

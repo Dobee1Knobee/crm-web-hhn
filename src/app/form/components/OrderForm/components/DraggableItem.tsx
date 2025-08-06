@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 
-interface DraggableItemProps {
+export interface DraggableItemProps {
     item: {
         label: string;
         price: number;

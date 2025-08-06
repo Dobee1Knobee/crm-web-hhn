@@ -1,9 +1,22 @@
-import { useState } from 'react';
+"use client"
+import {useEffect, useState} from 'react';
+import {useRouter} from "next/navigation";
 
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [activeTab, setActiveTab] = useState('new-order');
+    const [activeTab, setActiveTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('activeTab') || 'new-order';
+        }
+        return 'new-order';
+    });
     const [searchQuery, setSearchQuery] = useState('');
+    const router = useRouter();
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('activeTab', activeTab);
+        }
+    }, [activeTab]);
 
     // Заглушечные данные
     const [bufferOrders] = useState([
@@ -18,6 +31,36 @@ export default function Sidebar() {
         { id: 104, customerName: 'Anna Taylor', total: 380, items: 5, date: '2025-07-25', status: 'оформлен', phone: '+1234567893' },
         { id: 105, customerName: 'Robert Lee', total: 220, items: 3, date: '2025-07-23', status: 'в работе', phone: '+1234567894' }
     ]);
+
+    const handleClick = (tab: string) => {
+        setActiveTab(tab);
+
+        switch (tab) {
+            case 'new-order':
+
+                setActiveTab('new-order');
+                router.push('/form');
+                break;
+            case 'buffer':
+
+                setActiveTab('buffer');
+                router.push('/buffer');
+                break;
+            case 'my-orders':
+
+                setActiveTab('my-orders');
+                router.push('/myOrders');
+                break;
+            case 'search':
+
+                setActiveTab('search');
+                router.push('/search');
+
+                break;
+            default:
+                router.push('/');
+        }
+    };
 
     // Имитация текущего заказа (заглушка)
     const [hasCurrentOrder, setHasCurrentOrder] = useState(true);
@@ -70,7 +113,7 @@ export default function Sidebar() {
                             {/* Navigation Buttons */}
                             <div className="space-y-2">
                                 <button
-                                    onClick={() => setActiveTab('new-order')}
+                                    onClick={() => handleClick('new-order')}
                                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
                                         activeTab === 'new-order'
                                             ? 'bg-blue-100 text-blue-700 shadow-md'
@@ -82,7 +125,7 @@ export default function Sidebar() {
                                 </button>
 
                                 <button
-                                    onClick={() => setActiveTab('buffer')}
+                                    onClick={() => handleClick('buffer')}
                                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
                                         activeTab === 'buffer'
                                             ? 'bg-orange-100 text-orange-700 shadow-md'
@@ -101,7 +144,7 @@ export default function Sidebar() {
                                 </button>
 
                                 <button
-                                    onClick={() => setActiveTab('my-orders')}
+                                    onClick={() => handleClick('my-orders')}
                                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
                                         activeTab === 'my-orders'
                                             ? 'bg-green-100 text-green-700 shadow-md'
@@ -128,17 +171,17 @@ export default function Sidebar() {
                             {/* Tab Content */}
                             <div className="mt-6 flex-1 overflow-y-auto max-h-96">
                                 {/* New Order Tab */}
-                                {activeTab === 'new-order' && (
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="font-bold text-gray-800 text-sm">New Order</h3>
-                                        </div>
-                                        <div className="text-center text-gray-500 py-8">
-                                            <div className="text-4xl mb-2">➕</div>
-                                            <div className="text-sm">Создайте новый заказ</div>
-                                        </div>
-                                    </div>
-                                )}
+                                {/*{activeTab === 'new-order' && (*/}
+                                {/*    <div className="space-y-3">*/}
+                                {/*        <div className="flex items-center justify-between mb-4">*/}
+                                {/*            <h3 className="font-bold text-gray-800 text-sm">New Order</h3>*/}
+                                {/*        </div>*/}
+                                {/*        <div className="text-center text-gray-500 py-8">*/}
+                                {/*            <div className="text-4xl mb-2">➕</div>*/}
+                                {/*            <div className="text-sm">Создайте новый заказ</div>*/}
+                                {/*        </div>*/}
+                                {/*    </div>*/}
+                                {/*)}*/}
 
                                 {/* Buffer Tab */}
                                 {activeTab === 'buffer' && (
@@ -181,31 +224,31 @@ export default function Sidebar() {
                                     </div>
                                 )}
 
-                                {/* My Orders Tab */}
-                                {activeTab === 'my-orders' && (
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="font-bold text-gray-800 text-sm">My Orders</h3>
-                                            <span className="text-xs text-gray-500">{myOrders.length} orders</span>
-                                        </div>
+                                {/*/!* My Orders Tab *!/*/}
+                                {/*{activeTab === 'my-orders' && (*/}
+                                {/*    <div className="space-y-3">*/}
+                                {/*        <div className="flex items-center justify-between mb-4">*/}
+                                {/*            <h3 className="font-bold text-gray-800 text-sm">My Orders</h3>*/}
+                                {/*            <span className="text-xs text-gray-500">{myOrders.length} orders</span>*/}
+                                {/*        </div>*/}
 
-                                        {myOrders.slice(0, 10).map((order) => (
-                                            <div key={order.id} className="bg-green-50 border border-green-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div className="flex-1">
-                                                        <div className="font-semibold text-sm">{order.customerName}</div>
-                                                        <div className="text-xs text-gray-600">{order.phone}</div>
-                                                        <div className="text-xs text-gray-600">{order.date}</div>
-                                                        <div className="text-xs text-green-600 font-medium">{order.items} items • ${order.total}</div>
-                                                    </div>
-                                                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-200 text-green-800">
-                                                        {order.status}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {/*        {myOrders.slice(0, 10).map((order) => (*/}
+                                {/*            <div key={order.id} className="bg-green-50 border border-green-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">*/}
+                                {/*                <div className="flex justify-between items-start mb-2">*/}
+                                {/*                    <div className="flex-1">*/}
+                                {/*                        <div className="font-semibold text-sm">{order.customerName}</div>*/}
+                                {/*                        <div className="text-xs text-gray-600">{order.phone}</div>*/}
+                                {/*                        <div className="text-xs text-gray-600">{order.date}</div>*/}
+                                {/*                        <div className="text-xs text-green-600 font-medium">{order.items} items • ${order.total}</div>*/}
+                                {/*                    </div>*/}
+                                {/*                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-200 text-green-800">*/}
+                                {/*                        {order.status}*/}
+                                {/*                    </span>*/}
+                                {/*                </div>*/}
+                                {/*            </div>*/}
+                                {/*        ))}*/}
+                                {/*    </div>*/}
+                                {/*)}*/}
 
                                 {/* Search Tab */}
                                 {activeTab === 'search' && (
@@ -255,34 +298,34 @@ export default function Sidebar() {
                             </div>
 
                             {/* Action Buttons - показываем если имитируем текущий заказ */}
-                            {hasCurrentOrder && (
-                                <div className="border-t pt-4 mt-4 space-y-2">
-                                    <button
-                                        onClick={saveToMyOrders}
-                                        className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors duration-200"
-                                    >
-                                        💾 Save Order
-                                    </button>
-                                    <button
-                                        onClick={saveToBuffer}
-                                        className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors duration-200"
-                                    >
-                                        📋 Save to Buffer
-                                    </button>
-                                    <button
-                                        onClick={() => setHasCurrentOrder(false)}
-                                        className="w-full bg-gray-400 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-500 transition-colors duration-200"
-                                    >
-                                        🗑️ Clear Order
-                                    </button>
-                                </div>
-                            )}
+                            {/*{hasCurrentOrder && (*/}
+                            {/*    <div className="border-t pt-4 mt-4 space-y-2">*/}
+                            {/*        <button*/}
+                            {/*            onClick={saveToMyOrders}*/}
+                            {/*            className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors duration-200"*/}
+                            {/*        >*/}
+                            {/*            💾 Save Order*/}
+                            {/*        </button>*/}
+                            {/*        <button*/}
+                            {/*            onClick={saveToBuffer}*/}
+                            {/*            className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors duration-200"*/}
+                            {/*        >*/}
+                            {/*            📋 Save to Buffer*/}
+                            {/*        </button>*/}
+                            {/*        <button*/}
+                            {/*            onClick={() => setHasCurrentOrder(false)}*/}
+                            {/*            className="w-full bg-gray-400 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-500 transition-colors duration-200"*/}
+                            {/*        >*/}
+                            {/*            🗑️ Clear Order*/}
+                            {/*        </button>*/}
+                            {/*    </div>*/}
+                            {/*)}*/}
                         </div>
                     ) : (
                         /* Collapsed Sidebar */
                         <div className="p-2 space-y-2">
                             <button
-                                onClick={() => {setActiveTab('new-order'); setIsExpanded(true);}}
+                                onClick={() => handleClick('new-order')}
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'new-order' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'
                                 }`}
@@ -292,7 +335,7 @@ export default function Sidebar() {
                             </button>
 
                             <button
-                                onClick={() => {setActiveTab('buffer'); setIsExpanded(true);}}
+                                onClick={() => handleClick('buffer')}
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
                                     activeTab === 'buffer' ? 'bg-orange-100 text-orange-600' : 'text-gray-600 hover:bg-gray-100'
                                 }`}
@@ -301,13 +344,14 @@ export default function Sidebar() {
                                 <span className="text-lg">📋</span>
                                 {bufferOrders.length > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                                        {bufferOrders.length}
+                                      {bufferOrders.length}
                                     </span>
-                                )}
+                                        )}
                             </button>
 
+
                             <button
-                                onClick={() => {setActiveTab('my-orders'); setIsExpanded(true);}}
+                                onClick={() => handleClick('my-orders')}
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'my-orders' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'
                                 }`}
@@ -317,7 +361,7 @@ export default function Sidebar() {
                             </button>
 
                             <button
-                                onClick={() => {setActiveTab('search'); setIsExpanded(true);}}
+                                onClick={() => handleClick('search')}
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'search' ? 'bg-purple-100 text-purple-600' : 'text-gray-600 hover:bg-gray-100'
                                 }`}
