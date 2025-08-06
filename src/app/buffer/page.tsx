@@ -1,6 +1,7 @@
 import Header from "@/app/form/components/Header";
 import Sidebar from "@/app/form/components/Sidebar";
 import StatisticBuffer from "@/app/buffer/components/StaticBuffer";
+import BufferedOrders from "@/app/buffer/components/BufferedOrders";
 
 export default function Buffer() {
     return (
@@ -9,10 +10,14 @@ export default function Buffer() {
             <Sidebar />
 
             {/* Основной контент */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col overflow-hidden">
                 <Header />
-                {/* Можно добавить остальной контент страницы */}
-                <StatisticBuffer/>
+
+                {/* Контент с прокруткой */}
+                <div className="flex-1 overflow-y-auto">
+                    <StatisticBuffer />
+                    <BufferedOrders />
+                </div>
             </div>
         </div>
     );
