@@ -7,6 +7,7 @@ import {useEffect} from "react";
 import OrderDescription from "@/app/form/components/OrderForm/components/OrderDescription";
 import ServicesWindow from "@/app/form/components/OrderForm/components/ServicesWindow";
 import Masters from "@/app/form/components/OrderForm/components/Masters";
+import {useOrderStore} from "@/stores/orderStore";
 
 interface Props {
     user: User;
@@ -15,7 +16,12 @@ interface Props {
 
 export default function OrderForm({ user, leadId }: Props) {
     const team = user?.team?.toString() ?? 'A';
-    const city  = "New_York"
+    const city = useOrderStore(state => state.formData.city);
+
+    useEffect(() => {
+        console.log("TEAM:", team);
+        console.log("CITY:", city); // проверка
+    }, [team, city]);
     useEffect(() => {
         console.log(team)
     })
@@ -24,7 +30,7 @@ export default function OrderForm({ user, leadId }: Props) {
         <div className="space-y-6">
             <CustomerInfo/>
             <DateAndTime/>
-            <Cities team={team} />
+            <Cities team={team}  />
             <Masters team={team} city={city} />
             <OrderDescription/>
             <ServicesWindow/>

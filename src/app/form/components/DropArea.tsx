@@ -1,5 +1,7 @@
+// DropArea.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ СО STORE
 import React, { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
+import { useOrderStore } from '@/stores/orderStore';
 
 export interface ServiceItem {
     id: string;
@@ -10,8 +12,8 @@ export interface ServiceItem {
     category: string;
     subItems?: ServiceItem[];
     parentMainItemId?: number;
-    diagonals?: string[]; // Массив диагоналей для main элементов
-    customPrice?: number; // Кастомная цена для NO TV
+    diagonals?: string[];
+    customPrice?: number;
 }
 
 interface DropAreaProps {
@@ -28,7 +30,7 @@ interface DropAreaProps {
     onDrop?: (draggedItem: any, targetMainItemId?: number) => void;
 }
 
-// Компонент для ввода диагоналей
+// Компонент для ввода диагоналей (без изменений)
 const DiagonalInput: React.FC<{
     mainItemId: number;
     diagonals?: string[];
@@ -81,7 +83,6 @@ const DiagonalInput: React.FC<{
                 )}
             </div>
 
-            {/* Отображение добавленных диагоналей */}
             {diagonals.length > 0 && (
                 <div className="flex gap-1 flex-wrap mb-2">
                     {diagonals.map((diagonal, index) => (
@@ -101,7 +102,6 @@ const DiagonalInput: React.FC<{
                 </div>
             )}
 
-            {/* Инput для нового размера */}
             {showInput && (
                 <div className="flex gap-2">
                     <input
@@ -134,7 +134,7 @@ const DiagonalInput: React.FC<{
     );
 };
 
-// Компонент для ввода кастомной цены
+// Компонент для ввода кастомной цены (без изменений)
 const CustomPriceInput: React.FC<{
     mainItemId: number;
     customPrice?: number;
@@ -211,7 +211,7 @@ const CustomPriceInput: React.FC<{
     );
 };
 
-// Компонент для подзоны drop
+// Компонент для подзоны drop (без изменений)
 const SubDropZone: React.FC<{
     mainItemId: number;
     subItems?: ServiceItem[];
@@ -320,8 +320,93 @@ export const DropArea: React.FC<DropAreaProps> = ({
         id: "drop-area",
     });
 
+    // 🏪 ПОДКЛЮЧЕНИЕ К STORE
+    const {
+        formData,
+        currentUser,
+        isWorkingOnTelegramOrder,
+        currentTelegramOrder,
+        isSaving,
+        error,
+        createOrder,
+        createOrderFromTelegram,
+        saveToTeamBuffer,
+        validateForm,
+        getTotalPrice
+    } = useOrderStore();
+
     const [editingPrice, setEditingPrice] = useState<number | null>(null);
     const [tempPrice, setTempPrice] = useState('');
+
+    // 📊 Используем данные из store для общей стоимости
+    const total = getTotalPrice();
+
+    // 🎯 ОБРАБОТЧИКИ КНОПОК
+    const handleSaveOrder = async () => {
+        if (!currentUser) {
+            alert('Please login to save order');
+            return;
+        }
+
+        console.log('💾 Saving order...');
+
+        // Показываем текущее состояние для отладки
+        console.log('Form data:', formData);
+        console.log('Services:', items);
+        console.log('Is Telegram order:', isWorkingOnTelegramOrder);
+
+        try {
+            let createdOrder;
+
+            if (isWorkingOnTelegramOrder) {
+                // Создаем заказ из Telegram данных
+                createdOrder = await createOrderFromTelegram();
+            } else {
+                // Создаем обычный заказ
+                createdOrder = await createOrder(currentUser.userAt);
+            }
+
+            if (createdOrder) {
+                alert(`✅ Order created successfully! Order ID: ${createdOrder.leadId}`);
+                console.log('✅ Created order:', createdOrder);
+            } else {
+                // Показываем ошибки валидации
+                const errors = validateForm();
+                if (errors.length > 0) {
+                    alert(`❌ Please fix the following issues:\n\n${errors.join('\n')}`);
+                } else {
+                    alert('❌ Failed to create order. Please try again.');
+                }
+            }
+        } catch (err) {
+            console.error('❌ Error saving order:', err);
+            alert('❌ Error saving order. Please check console for details.');
+        }
+    };
+
+    const handleSendToBuffer = async () => {
+        if (!currentUser) {
+            alert('Please login to send to buffer');
+            return;
+        }
+
+        // Для Telegram заказов не отправляем в буфер
+        if (isWorkingOnTelegramOrder) {
+            alert('📱 Telegram orders should be saved directly, not sent to buffer');
+            return;
+        }
+
+        console.log('🚀 Sending to buffer...');
+
+        try {
+            await saveToTeamBuffer();
+            alert('🚀 Order sent to team buffer successfully!');
+            console.log('🚀 Sent to buffer');
+        } catch (err) {
+            console.error('❌ Error sending to buffer:', err);
+            alert('❌ Error sending to buffer. Please check console for details.');
+        }
+    };
 
     // 🔍 ОТЛАДКА
     console.log('🔍 DropArea Debug:', {
@@ -330,18 +415,14 @@ export const DropArea: React.FC<DropAreaProps> = ({
         draggedItemCategory: draggedItem?.category,
         itemsLength: items.length,
         hasMainItems: items.some(item => item.category === 'main'),
-        isOver
+        isOver,
+        total,
+        formDataComplete: !!(formData.customerName && formData.phoneNumber && formData.date && formData.time),
+        isWorkingOnTelegramOrder,
+        currentUser: currentUser?.userName
     });
 
-    // Подсчет общей стоимости с учетом подэлементов и кастомных цен
-    const total = items.reduce((sum, item) => {
-        const itemPrice = item.name === "NO TV" && item.customPrice !== undefined ? item.customPrice : item.price;
-        const itemTotal = itemPrice * (item.quantity || 1);
-        const subItemsTotal = item.subItems ?
-            item.subItems.reduce((subSum, subItem) => subSum + (subItem.price * (subItem.quantity || 1)), 0) : 0;
-        return sum + itemTotal + subItemsTotal;
-    }, 0);
-
+    // 🎨 UI ЛОГИКА (без изменений)
     const startPriceEdit = (orderId: number, currentPrice: number) => {
         setEditingPrice(orderId);
         setTempPrice(currentPrice.toString());
@@ -371,25 +452,18 @@ export const DropArea: React.FC<DropAreaProps> = ({
         }
     };
 
-    // Основная логика: main элементы всегда можно в основную зону
     const canAcceptInMainZone = draggedItem && draggedItem.category === 'main';
-
-    // Проверяем: это additional/materials элемент
     const isAdditionalItem = draggedItem && (draggedItem.category === 'additional' || draggedItem.category === 'materials');
-
-    // Есть ли main сервисы в заказе
     const hasMainServices = items.length > 0 && items.some(item => item.category === 'main');
 
     return (
         <div
             ref={setNodeRef}
             className={`w-full h-full rounded-xl border-4 border-dashed p-6 transition-colors duration-300 ${
-                // Если сейчас hover
                 isOver
                     ? canAcceptInMainZone
                         ? "border-green-400 bg-green-50"
                         : "border-red-400 bg-red-50"
-                    // Если НЕ hover, но перетаскиваем additional
                     : isAdditionalItem
                         ? "border-red-400 bg-red-100"
                         : "border-blue-200 bg-blue-50"
@@ -398,12 +472,26 @@ export const DropArea: React.FC<DropAreaProps> = ({
             <div className="text-center mb-4">
                 <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2">
                     📋 Order Builder
+                    {/* 📱 Индикатор Telegram заказа */}
+                    {isWorkingOnTelegramOrder && currentTelegramOrder && (
+                        <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                            📱 Telegram: {currentTelegramOrder.customerName}
+                        </span>
+                    )}
                 </h2>
 
-                {/* Разные предупреждения для additional элементов */}
+                {/* ⚠️ Показываем ошибки */}
+                {error && (
+                    <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
+                        <div className="text-red-600 font-semibold text-sm">
+                            ❌ {error}
+                        </div>
+                    </div>
+                )}
+
+                {/* Логика предупреждений (без изменений) */}
                 {isAdditionalItem ? (
                     hasMainServices ? (
-                        // Если есть main сервисы - показываем сообщение о drop на них
                         <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
                             <div className="text-red-600 font-semibold text-sm mb-1">
                                 ⚠️ Additional services must be dropped on main services
@@ -413,7 +501,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             </div>
                         </div>
                     ) : (
-                        // Если нет main сервисов - показываем сообщение о добавлении main сначала
                         <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
                             <div className="text-red-600 font-semibold text-sm mb-1">
                                 ⚠️ Please add main service first
@@ -431,9 +518,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
 
                 {draggedItem && !isAdditionalItem && (
                     <div className={`font-semibold animate-pulse text-sm ${
-                        canAcceptInMainZone
-                            ? 'text-green-600'
-                            : 'text-red-500'
+                        canAcceptInMainZone ? 'text-green-600' : 'text-red-500'
                     }`}>
                         {canAcceptInMainZone
                             ? `✨ Drop "${draggedItem.name}" here!`
@@ -527,7 +612,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Diagonal input for main items (except NO TV) */}
                                     {item.category === 'main' && item.name !== "NO TV" && (
                                         <DiagonalInput
                                             mainItemId={item.orderId!}
@@ -536,7 +620,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         />
                                     )}
 
-                                    {/* Custom price input for NO TV */}
                                     {item.category === 'main' && item.name === "NO TV" && (
                                         <CustomPriceInput
                                             mainItemId={item.orderId!}
@@ -545,7 +628,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         />
                                     )}
 
-                                    {/* Sub-items drop zone for main category items */}
                                     {item.category === 'main' && (
                                         <SubDropZone
                                             mainItemId={item.orderId!}
@@ -560,18 +642,86 @@ export const DropArea: React.FC<DropAreaProps> = ({
                         </ul>
                     </div>
 
+                    {/* 🚀 НОВЫЕ КНОПКИ С ФУНКЦИОНАЛЬНОСТЬЮ */}
                     <div className="border-t border-gray-200 pt-4 mt-2">
                         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl text-center">
                             <div className="text-2xl font-bold">
                                 Total: ${total.toFixed(2)}
                             </div>
+
+                            {/* 📊 Статус заказа */}
+                            <div className="text-sm mt-1 opacity-90">
+                                {isWorkingOnTelegramOrder ? (
+                                    `📱 Telegram Order: ${currentTelegramOrder?.customerName}`
+                                ) : (
+                                    `🏠 New Order: ${formData.customerName || 'Unnamed Customer'}`
+                                )}
+                            </div>
+
                             <div className="flex w-full justify-between gap-3 mt-4">
-                                <button className="flex items-center justify-center gap-2 bg-white text-black w-1/2 py-4 rounded-2xl border border-gray-300 shadow hover:shadow-md transition-all">
-                                    💾 <span>Save Order</span>
+                                <button
+                                    onClick={handleSaveOrder}
+                                    disabled={isSaving || items.length === 0}
+                                    className={`flex items-center justify-center gap-2 w-1/2 py-4 rounded-2xl border shadow transition-all ${
+                                        isSaving || items.length === 0
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+                                            : 'bg-white text-black border-gray-300 hover:shadow-md hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            💾 <span>{isWorkingOnTelegramOrder ? 'Complete Telegram Order' : 'Save Order'}</span>
+                                        </>
+                                    )}
                                 </button>
-                                <button className="flex items-center justify-center gap-2 bg-orange-400 text-white w-1/2 py-4 rounded-2xl shadow hover:bg-orange-500 transition-all">
-                                    🚀 <span>Send to Buffer</span>
+
+                                <button
+                                    onClick={handleSendToBuffer}
+                                    disabled={isSaving || items.length === 0 || isWorkingOnTelegramOrder}
+                                    className={`flex items-center justify-center gap-2 w-1/2 py-4 rounded-2xl shadow transition-all ${
+                                        isSaving || items.length === 0 || isWorkingOnTelegramOrder
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-orange-400 text-white hover:bg-orange-500'
+                                    }`}
+                                    title={isWorkingOnTelegramOrder ? 'Telegram orders are saved directly' : 'Send to team buffer'}
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                                            <span>Sending...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            🚀 <span>Send to Buffer</span>
+                                        </>
+                                    )}
                                 </button>
+                            </div>
+
+                            {/* 📝 Подсказки для пользователя */}
+                            <div className="mt-3 text-xs opacity-80">
+                                {isWorkingOnTelegramOrder ? (
+                                    <div className="flex items-center justify-center gap-1">
+                                        <span>📱</span>
+                                        <span>Complete this Telegram order to create final order</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center gap-4">
+                                        <div className="flex items-center gap-1">
+                                            <span>💾</span>
+                                            <span>Save = Create final order</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span>🚀</span>
+                                            <span>Buffer = Share with team</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

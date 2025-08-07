@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { OrderStatus } from "@/types/api";
+import {useOrderStore} from "@/stores/orderStore";
 
 interface StatusPillsProps {
     selectedStatus?: OrderStatus;
@@ -16,7 +17,12 @@ export default function StatusPills({
 
     // Используем внешний selectedStatus если передан, иначе внутренний
     const currentSelected = selectedStatus ?? internalSelectedStatus;
-
+    const {
+        formData,
+        updateFormData,
+        isWorkingOnTelegramOrder,
+        currentTelegramOrder
+    } = useOrderStore();
     // Маппинг цветов для статусов
     const statusColors = {
         [OrderStatus.CANCELLED]: { bg: '#470909', text: '#ffffff' },
@@ -37,7 +43,7 @@ export default function StatusPills({
         if (disabled) return;
 
         const newStatus = currentSelected === status ? null : status;
-
+        updateFormData("status", status)
         if (onStatusChange) {
             onStatusChange(newStatus);
         } else {

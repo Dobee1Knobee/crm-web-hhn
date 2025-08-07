@@ -252,7 +252,7 @@ export default function Sidebar() {
 
                                 {/* Search Tab */}
                                 {activeTab === 'search' && (
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 ">
                                         <div className="mb-4">
                                             <h3 className="font-bold text-gray-800 mb-3 text-sm">Search Orders</h3>
                                             <div className="relative">
@@ -269,7 +269,7 @@ export default function Sidebar() {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                                        <div className="space-y-2 max-h-90 overflow-y-auto">
                                             {filteredMyOrders.map((order) => (
                                                 <div key={order.id} className="bg-purple-50 border border-purple-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">
                                                     <div className="flex justify-between items-start mb-2">

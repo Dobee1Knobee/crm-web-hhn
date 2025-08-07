@@ -1,4 +1,12 @@
+import {useOrderStore} from "@/stores/orderStore";
+
 export default function OrderDescription(){
+    const {
+        formData,
+        updateFormData,
+        isWorkingOnTelegramOrder,
+        currentTelegramOrder
+    } = useOrderStore();
     return(
         <div className={"bg-white shadow-md rounded-2xl p-6 m-9 w-full max-w-xl items-center"}>
             <div className="flex items-center mb-4">
@@ -8,6 +16,7 @@ export default function OrderDescription(){
             <textarea
                 className=" bg-gray-50 text-gray-700 rounded-2xl w-full h-20 p-4 border border-gray-200 resize-none"
                 placeholder="Example: 50 60 70 inch, 50 outside, 60 broken mount dismount"
+                onChange={(e => updateFormData("description", e.currentTarget.value))}
             />
         </div>
     )
