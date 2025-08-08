@@ -135,6 +135,7 @@ interface OrderState {
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
 const initialFormData: FormData = {
     customerName: '',
+    status : "",
     phoneNumber: '',
     address: '',
     zipCode: '',
@@ -501,6 +502,8 @@ export const useOrderStore = create<OrderState>()(
                     const prefilledFormData: FormData = {
                         customerName: telegramOrder.customerName,
                         phoneNumber: telegramOrder.phoneNumber,
+
+                        status: telegramOrder.status,
                         address: '',
                         zipCode: '',
                         date: '',

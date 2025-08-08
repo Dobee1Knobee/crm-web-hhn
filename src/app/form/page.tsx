@@ -57,7 +57,7 @@ export default function Home() {
     useEffect(() => {
         if (user) {
             setCurrentUser({
-                userId: user.id?.toString() || 'unknown',
+                userId: user.manager_id?.toString() || 'unknown',
                 userName: user.name || 'Unknown User',
                 userAt: user.at || 'unknown_at',
                 team: user.team?.toString() || 'A'
