@@ -10,12 +10,13 @@ import {
     convertServiceItemToOrderService,
     OrderSearchQuery
 } from '@/types/formDataType';
+import {state} from "sucrase/dist/types/parser/traverser/base";
 
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
 interface FormData {
     customerName: string;
     phoneNumber: string;
-    status : string
+    text_status : string
     address: string;
     zipCode: string;
     date: string;
@@ -67,7 +68,7 @@ interface TelegramOrder {
 }
 
 // ===== ИНТЕРФЕЙС STORE =====
-interface OrderState {
+export interface OrderState {
     // ===== ДАННЫЕ =====
     currentOrder: Order | null;
     formData: FormData;
@@ -130,12 +131,15 @@ interface OrderState {
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     reset: () => void;
+
+    // ===== ДЕЙСТВИЯ С ГОТОВЫМИ ЗАКАЗАМИ =====
+    changeStatus: (status: string,leadId:string) => void;
 }
 
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
 const initialFormData: FormData = {
     customerName: '',
-    status : "",
+    text_status : "",
     phoneNumber: '',
     address: '',
     zipCode: '',
@@ -294,6 +298,8 @@ export const useOrderStore = create<OrderState>()(
                     )
                 }), false, 'updateServiceQuantity');
             },
+
+
 
             updateServicePrice: (orderId, newPrice) => {
                 set(state => ({
@@ -503,7 +509,7 @@ export const useOrderStore = create<OrderState>()(
                         customerName: telegramOrder.customerName,
                         phoneNumber: telegramOrder.phoneNumber,
 
-                        status: telegramOrder.status,
+                        text_status: telegramOrder.status,
                         address: '',
                         zipCode: '',
                         date: '',
@@ -673,8 +679,8 @@ export const useOrderStore = create<OrderState>()(
                         master: formData.masterName,
                         manager_id: formData.masterId,
                         comment: formData.description,
-                        comments: formData.description,
                         services: orderServices,
+                        text_status : formData.text_status,
                         total: get().getTotalPrice(),
                         transfer_status: TransferStatus.ACTIVE,
                         canceled: false,
@@ -684,6 +690,7 @@ export const useOrderStore = create<OrderState>()(
                         transfer_history: [],
                         changes: []
                     };
+                    console.log(orderData);
 
                     const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/api/addOrder', {
                         method: 'POST',
@@ -714,24 +721,30 @@ export const useOrderStore = create<OrderState>()(
             },
 
             // ===== ОСТАЛЬНЫЕ ДЕЙСТВИЯ =====
-            fetchOrders: async (query = {}) => {
+            fetchOrders: async () => {
                 set({ isLoading: true, error: null });
 
                 try {
-                    const queryParams = new URLSearchParams();
-                    Object.entries(query).forEach(([key, value]) => {
-                        if (value !== undefined) {
-                            queryParams.append(key, String(value));
-                        }
-                    });
+                    const { currentUser } = get();
+                    if (!currentUser) {
+                        throw new Error('User not authenticated');
+                    }
 
-                    const response = await fetch(`/api/orders?${queryParams.toString()}`);
+                    // Убираем "@" если он есть
+                    const atClean = currentUser.userAt.startsWith('@')
+                        ? currentUser.userAt.slice(1)
+                        : currentUser.userAt;
 
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app` +
+                        `/api/user/myOrders/${encodeURIComponent(atClean)}`
+                    );
                     if (!response.ok) {
                         throw new Error('Failed to fetch orders');
                     }
 
                     const data = await response.json() as { orders: Order[] };
+                    console.log(data)
                     set({ orders: data.orders, isLoading: false });
                 } catch (error) {
                     console.error('Fetch orders error:', error);
@@ -739,11 +752,53 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
+
+
             fetchMyOrders: async (owner) => {
                 await get().fetchOrders({ owner, transfer_status: TransferStatus.ACTIVE });
                 set(state => ({ myOrders: state.orders }));
             },
+// В интерфейсе:
 
+            changeStatus: async (status, leadId) => {
+                set({ isSaving: true, error: null }, false, 'changeStatus:start');
+                try {
+                    // Если нужно логировать, кто меняет статус
+                    const at = get().currentUser?.userAt?.replace(/^@/, '');
+
+                    const res = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/orders/${encodeURIComponent(leadId)}/status`,
+                        {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text_status: status, owner: at })
+                        }
+                    );
+                    if (!res.ok) throw new Error('Failed to update status');
+
+                    const json = await res.json(); // { success, message, order }
+                    const updated = json.order;
+                    console.log(updated);
+
+                    // Оптимистично обновляем локальные списки
+                    set(state => ({
+                        orders: state.orders.map(o =>
+                            o.order_id === leadId ? { ...o, text_status: updated?.text_status ?? status } : o
+                        ),
+                        myOrders: state.myOrders.map(o =>
+                            o.order_id === leadId ? { ...o, text_status: updated?.text_status ?? status } : o
+                        ),
+                        currentOrder:
+                            state.currentOrder?.order_id === leadId
+                                ? { ...state.currentOrder, text_status: updated?.text_status ?? status }
+                                : state.currentOrder,
+                        isSaving: false
+                    }), false, 'changeStatus:success');
+                } catch (e) {
+                    console.error('changeStatus error', e);
+                    set({ isSaving: false, error: 'Не удалось обновить статус' }, false, 'changeStatus:error');
+                }
+            },
             setLoading: (loading) => set({ isLoading: loading }),
             setError: (error) => set({ error }),
 

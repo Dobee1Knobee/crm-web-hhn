@@ -1,21 +1,37 @@
+// src/app/myOrders/components/StatisticBar.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+
 export default function StatisticBar() {
+    // State for the current time string
+    const [timeString, setTimeString] = useState('');
+
+    useEffect(() => {
+        const updateTime = () => {
+            setTimeString(new Date().toLocaleTimeString());
+        };
+        // Initialize immediately
+        updateTime();
+        // Update every second (or change interval as needed)
+        const timer = setInterval(updateTime, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
     // Здесь будут данные из API или хуков
     const statistics = {
         inProgress: 24,
         completed: 156,
-        invalidCancelled: 8
+        invalidCancelled: 8,
     };
 
-    const formatNumber = (num: number) => {
-        return num.toString().padStart(2, '0');
-    };
+    const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
     return (
         <div className="bg-white shadow-lg rounded-2xl p-6 mb-6">
             <div className="flex items-center justify-between">
-
                 <div className="text-sm text-gray-500">
-                    Last updated: {new Date().toLocaleTimeString()}
+                    Last updated{timeString ? `: ${timeString}` : ''}
                 </div>
             </div>
 
@@ -41,11 +57,11 @@ export default function StatisticBar() {
                             <div
                                 className="h-2 bg-blue-500 rounded-full transition-all duration-500"
                                 style={{ width: `${Math.min((statistics.inProgress / 50) * 100, 100)}%` }}
-                            ></div>
+                            />
                         </div>
                         <span className="text-xs text-blue-600 font-medium">
-                            {Math.round((statistics.inProgress / 50) * 100)}%
-                        </span>
+              {Math.round((statistics.inProgress / 50) * 100)}%
+            </span>
                     </div>
                 </div>
 
@@ -70,11 +86,11 @@ export default function StatisticBar() {
                             <div
                                 className="h-2 bg-green-500 rounded-full transition-all duration-500"
                                 style={{ width: `${Math.min((statistics.completed / 200) * 100, 100)}%` }}
-                            ></div>
+                            />
                         </div>
                         <span className="text-xs text-green-600 font-medium">
-                            {Math.round((statistics.completed / 200) * 100)}%
-                        </span>
+              {Math.round((statistics.completed / 200) * 100)}%
+            </span>
                     </div>
                     <div className="mt-2 flex items-center gap-1">
                         <span className="text-xs text-green-600">↗️</span>
@@ -103,18 +119,25 @@ export default function StatisticBar() {
                             <div
                                 className="h-2 bg-red-500 rounded-full transition-all duration-500"
                                 style={{ width: `${Math.min((statistics.invalidCancelled / 20) * 100, 100)}%` }}
-                            ></div>
+                            />
                         </div>
                         <span className="text-xs text-red-600 font-medium">
-                            {Math.round((statistics.invalidCancelled / 20) * 100)}%
-                        </span>
+              {Math.round((statistics.invalidCancelled / 20) * 100)}%
+            </span>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-1">
                             <span className="text-xs text-red-600">📊</span>
                             <span className="text-xs text-red-600">
-                                {((statistics.invalidCancelled / (statistics.inProgress + statistics.completed + statistics.invalidCancelled)) * 100).toFixed(1)}% rate
-                            </span>
+                {(
+                    (statistics.invalidCancelled /
+                        (statistics.inProgress +
+                            statistics.completed +
+                            statistics.invalidCancelled)) *
+                    100
+                ).toFixed(1)}
+                                % rate
+              </span>
                         </div>
                     </div>
                 </div>
@@ -125,16 +148,27 @@ export default function StatisticBar() {
                 <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            <div className="w-3 h-3 bg-blue-500 rounded-full" />
                             <span className="text-gray-600">Total Active: {statistics.inProgress}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                            <span className="text-gray-600">Success Rate: {((statistics.completed / (statistics.completed + statistics.invalidCancelled)) * 100).toFixed(1)}%</span>
+                            <div className="w-3 h-3 bg-green-500 rounded-full" />
+                            <span className="text-gray-600">
+                Success Rate:{' '}
+                                {(
+                                    (statistics.completed /
+                                        (statistics.completed + statistics.invalidCancelled)) *
+                                    100
+                                ).toFixed(1)}
+                                %
+              </span>
                         </div>
                     </div>
                     <div className="font-semibold text-gray-700">
-                        Total Orders: {statistics.inProgress + statistics.completed + statistics.invalidCancelled}
+                        Total Orders:{' '}
+                        {statistics.inProgress +
+                            statistics.completed +
+                            statistics.invalidCancelled}
                     </div>
                 </div>
             </div>

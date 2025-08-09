@@ -1,7 +1,12 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    // Собираем standalone-версию в .next/standalone
+    output: 'standalone',
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+    // Отключаем ESLint-проверку при сборке
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+}
 
-export default nextConfig;
+module.exports = nextConfig

@@ -96,12 +96,11 @@ export interface TransferHistoryItem {
 // ===== ОСНОВНОЙ ИНТЕРФЕЙС ЗАКАЗА =====
 
 export interface Order {
-    leadId: any;
+    leadId: string;
     _id?: string; // MongoDB ID
-
     // ===== БАЗОВЫЕ ПОЛЯ =====
     owner: string; // обязательное поле
-    order_id?: string;
+    order_id: string;
     createdAt: Date;
     address?: string;
     client_id?: number;
@@ -116,7 +115,7 @@ export interface Order {
     // ===== СИСТЕМНЫЕ ПОЛЯ =====
     miles: number[];
     response_time: string[];
-    text_status?: string;
+    text_status: string;
     visits: OrderVisit[];
     canceled: boolean;
     schedule_string?: string;
@@ -137,6 +136,7 @@ export interface Order {
     comment?: string;
     total?: number;
     services: OrderService[];
+    time?: string;
 
     // ===== ИСТОРИЯ И МЕТАДАННЫЕ =====
     original?: Record<string, unknown>;
@@ -210,6 +210,7 @@ export interface CreateOrderData {
     total: number;
 
     // Статусы
+    text_status?: string;
     transfer_status: TransferStatus;
     canceled: boolean;
 

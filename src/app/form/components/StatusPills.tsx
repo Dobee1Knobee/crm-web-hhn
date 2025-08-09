@@ -43,7 +43,7 @@ export default function StatusPills({
         if (disabled) return;
 
         const newStatus = currentSelected === status ? null : status;
-        updateFormData("status", status)
+        updateFormData("text_status", status)
         if (onStatusChange) {
             onStatusChange(newStatus);
         } else {

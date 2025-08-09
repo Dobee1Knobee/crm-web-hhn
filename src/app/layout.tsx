@@ -1,27 +1,19 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import '@/app/global.css'
+// src/app/layout.tsx
+import { Inter } from 'next/font/google';
+import ClientInit from "@/app/ClientInit";
+const inter = Inter({ subsets: ['latin'] });
 
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata: Metadata = {
-    title: 'CRM Web HHN',
-    description: 'Customer Relationship Management System',
-}
-
-export default function RootLayout({
-                                       children,
-                                   }: {
-    children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="ru">
-        <body className={inter.className}>
-        <div className="App">
-            {/* Здесь будут провайдеры контекста на следующем этапе */}
-            {children}
-        </div>
+        <body
+            className={inter.className}
+            suppressHydrationWarning
+        >
+        <ClientInit />
+
+        {children}
         </body>
         </html>
-    )
+    );
 }

@@ -2,7 +2,6 @@
 "use client";
 import "@/app/global.css";
 import { useUserByAt } from "@/hooks/useUserByAt";
-import { useOrders } from "@/hooks/useOrders";
 import { OrderStatus } from "@/types/api";
 import Header from "@/app/form/components/Header";
 import StatusPills from "@/app/form/components/StatusPills";
@@ -30,7 +29,6 @@ interface ServiceItem {
 export default function Home() {
     const at = "devapi1";
     const user = useUserByAt("devapi1");
-    useOrders({ username: "devapi1" });
 
     // 🏪 Используем ТОЛЬКО store, убираем локальное состояние
     const {
