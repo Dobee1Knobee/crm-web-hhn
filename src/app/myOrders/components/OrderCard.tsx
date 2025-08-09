@@ -195,6 +195,24 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
         if (statusOpen) document.addEventListener('mousedown', onDoc)
         return () => document.removeEventListener('mousedown', onDoc)
     }, [statusOpen])
+// Время для отображения
+    const displayDateTime = useMemo(() => {
+        // Если есть отдельное поле time с am/pm
+        if (order.time && /am|pm/i.test(order.time)) {
+            return `${order.date || ''} ${order.time}`.trim();
+        }
+
+        // Если в order.date есть am/pm
+        if (order.date && /am|pm/i.test(order.date)) {
+            return order.date;
+        }
+
+        // Если нормальная дата
+        const d = (order.date && order.date.trim())
+            ? readDate(order.date)
+            : readDate(order.createdAt);
+        return d ? formatDateTime(d) : '';
+    }, [order.date, order.time, order.createdAt]);
 
     return (
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 relative" data-status-root>
@@ -246,8 +264,8 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                 {(order.address || order.zip_code) && (
                     <div>📍 {order.address}{order.zip_code ? `, ${order.zip_code}` : ''}</div>
                 )}
-                {fromDate && (
-                    <div>📅 {formatDateTime(fromDate)}</div>
+                {displayDateTime && (
+                    <div>📅 {displayDateTime}</div>
                 )}
             </div>
 

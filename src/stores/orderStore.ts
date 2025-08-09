@@ -93,6 +93,7 @@ export interface OrderState {
         userName: string;
         userAt: string;
         team: string;
+        manager_id: string;
     } | null;
 
     // ===== ДЕЙСТВИЯ С ФОРМОЙ =====
@@ -127,13 +128,15 @@ export interface OrderState {
     fetchMyOrders: (owner: string) => Promise<void>;
 
     // ===== УТИЛИТЫ =====
-    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string }) => void;
+    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string,manager_id:string }) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     reset: () => void;
-
+    login: (at:string,password:string) => Promise<void>;
     // ===== ДЕЙСТВИЯ С ГОТОВЫМИ ЗАКАЗАМИ =====
     changeStatus: (status: string,leadId:string) => void;
+    initFromStorage: () => void
+    // searchOrder: (leadId?: string,phone?:string) => Promise<Order | null>;
 }
 
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
@@ -174,6 +177,42 @@ export const useOrderStore = create<OrderState>()(
             // ===== ПОЛЬЗОВАТЕЛЬ =====
             setCurrentUser: (user) => {
                 set({ currentUser: user }, false, 'setCurrentUser');
+            },
+            login: async (at, password) => {
+                try {
+                    const res = await fetch(
+                        'https://bot-crm-backend-756832582185.us-central1.run.app/auth/login',
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ at, password }),
+                        }
+                    );
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.message || 'Ошибка входа');
+                    }
+
+                    const data = await res.json();
+                    set({ currentUser: data.user });
+
+                    sessionStorage.setItem('currentUser', JSON.stringify(data.user))
+                } catch (e) {
+                    console.error('Login error:', e);
+                    throw e;
+                }
+            },
+            initFromStorage: () => {
+                const raw = sessionStorage.getItem('currentUser');
+                if (raw) {
+                    try {
+                        const user = JSON.parse(raw);
+                        set({ currentUser: user });
+                    } catch {
+                        sessionStorage.removeItem('currentUser');
+                    }
+                }
             },
 
             // ===== ФОРМА =====
@@ -571,7 +610,8 @@ export const useOrderStore = create<OrderState>()(
                         address: formData.address,
                         zip_code: formData.zipCode,
                         city: formData.city,
-                        date: `${formData.date} ${formData.time}`,
+                        date: formData.date,
+                        time: formData.time,
                         master: formData.masterName,
                         manager_id: formData.masterId,
                         comment: formData.description,
@@ -675,7 +715,8 @@ export const useOrderStore = create<OrderState>()(
                         address: formData.address,
                         zip_code: formData.zipCode,
                         city: formData.city,
-                        date: `${formData.date} ${formData.time}`,
+                        date: formData.date,
+                        time :formData.time,
                         master: formData.masterName,
                         manager_id: formData.masterId,
                         comment: formData.description,
@@ -752,7 +793,9 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
-
+            // searchOrder: async (leadId, phone?:string) => {
+            //
+            // }
 
             fetchMyOrders: async (owner) => {
                 await get().fetchOrders({ owner, transfer_status: TransferStatus.ACTIVE });

@@ -65,7 +65,6 @@ export default function Sidebar() {
                 break;
             case 'search':
                 setActiveTab(tab);
-                router.push('/search');
                 break;
         }
     };

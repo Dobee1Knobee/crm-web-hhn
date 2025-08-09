@@ -198,6 +198,7 @@ export interface CreateOrderData {
 
     // Дата и мастер
     date: string;
+    time:string;
     master?: string;
     manager_id?: string;
 

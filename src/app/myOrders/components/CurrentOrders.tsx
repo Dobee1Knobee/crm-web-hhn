@@ -7,7 +7,9 @@ import { TransferStatus } from '@/types/formDataType';
 
 export default function OrdersDemo() {
     const {fetchOrders, orders} = useOrderStore();
-
+    useEffect(() => {
+        fetchOrders();
+    }, []);
     const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
         console.log(`Changing status of order ${orderId} to ${newStatus}`);
         // Здесь будет API вызов для изменения статуса
