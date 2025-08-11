@@ -16,6 +16,7 @@ export default function OrderDescription(){
             <textarea
                 className=" bg-gray-50 text-gray-700 rounded-2xl w-full h-20 p-4 border border-gray-200 resize-none"
                 placeholder="Example: 50 60 70 inch, 50 outside, 60 broken mount dismount"
+                value={formData.description}
                 onChange={(e => updateFormData("description", e.currentTarget.value))}
             />
         </div>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import {useOrderStore} from "@/stores/orderStore";
 import Order from "@/types/formDataType";
+import {useRouter} from "next/navigation";
 
 // Тип под твой документ из Mongo (без жёстких зависимостей)
 export type MongoDate = string | { $date: string }
@@ -96,7 +97,6 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
     const [expanded, setExpanded] = useState(false)
     const [statusOpen, setStatusOpen] = useState(false)
     const changeStatus = useOrderStore(state => state.changeStatus)
-
     // === Status enum & palettes ===
     // Если в проекте уже есть enum OrderStatus — удали тип ниже и импортни свой.
     type OrderStatus =
@@ -158,6 +158,21 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
         const leadId = order.order_id;              // именно ID заказа
         changeStatus(ru, leadId);
     }
+    const updateOrder = useOrderStore(state => state.getByLeadID);
+    const router = useRouter();
+    const handleUpdateOrder = async (leadId: string) => {
+        console.log(leadId)
+        const order = await updateOrder(leadId);
+
+        if (order) {
+            console.log("Заказ найден:", order);
+            router.push("/form")
+            // здесь можно положить в state, отобразить в форме и т.п.
+        } else {
+            console.warn("Заказ не найден");
+        }
+    }
+
     // ID для действий
     const oid = readOid(order._id) || order.order_id
 
@@ -303,7 +318,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                 <div className="text-2xl font-bold">💰 {currency(order.total)}</div>
                 <div className="flex items-center gap-3">
                     <button title="Просмотр" onClick={() => onView?.(String(oid))} className="hover:opacity-80" aria-label="Просмотр">👁️</button>
-                    <button title="Редактировать" onClick={() => onEdit?.(String(oid))} className="hover:opacity-80" aria-label="Редактировать">✏️</button>
+                    <button title="Редактировать" onClick={() =>handleUpdateOrder(order.order_id)} className="hover:opacity-80" aria-label="Редактировать">✏️</button>
                 </div>
             </div>
         </div>

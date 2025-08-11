@@ -23,11 +23,15 @@ export default function LoginPage() {
         setLoading(true);
         try {
             await login(at.trim(), pwd);
+
+
             router.push(search?.get('next') || '/myOrders');
         } finally {
             setLoading(false);
         }
     }
+
+
 
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">

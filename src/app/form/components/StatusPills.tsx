@@ -16,13 +16,14 @@ export default function StatusPills({
     const [internalSelectedStatus, setInternalSelectedStatus] = useState<OrderStatus | null>(null);
 
     // Используем внешний selectedStatus если передан, иначе внутренний
-    const currentSelected = selectedStatus ?? internalSelectedStatus;
     const {
         formData,
         updateFormData,
         isWorkingOnTelegramOrder,
         currentTelegramOrder
     } = useOrderStore();
+    const currentSelected = formData.text_status ?? internalSelectedStatus;
+
     // Маппинг цветов для статусов
     const statusColors = {
         [OrderStatus.CANCELLED]: { bg: '#470909', text: '#ffffff' },
@@ -65,16 +66,17 @@ export default function StatusPills({
                         key={status}
                         onClick={() => handleStatusClick(status)}
                         disabled={disabled}
-                        className={`
-             px-4 py-2 rounded-full text-xs font-semibold 
-             transition-all duration-200 transform 
-             hover:scale-105 hover:shadow-md
-             disabled:opacity-50 disabled:cursor-not-allowed
-             ${isSelected
-                            ? 'shadow-lg scale-105'
-                            : 'hover:shadow-md'
-                        }
-           `}
+
+                                className={`
+                     px-4 py-2 rounded-full text-xs font-semibold 
+                     transition-all duration-200 transform 
+                     hover:scale-105 hover:shadow-md
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     ${isSelected
+                                    ? 'shadow-lg scale-105'
+                                    : 'hover:shadow-md'
+                                }
+                   `}
                         style={{
                             backgroundColor: colors.bg,
                             opacity: isSelected ? 1 : 0.5,

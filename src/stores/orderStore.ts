@@ -11,9 +11,10 @@ import {
     OrderSearchQuery
 } from '@/types/formDataType';
 import {state} from "sucrase/dist/types/parser/traverser/base";
+import {mapOrderToFormPatch} from "@/utils/mapOrderToForm";
 
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
-interface FormData {
+export interface FormData {
     customerName: string;
     phoneNumber: string;
     text_status : string
@@ -136,6 +137,9 @@ export interface OrderState {
     // ===== ДЕЙСТВИЯ С ГОТОВЫМИ ЗАКАЗАМИ =====
     changeStatus: (status: string,leadId:string) => void;
     initFromStorage: () => void
+    updateOrder: (leadId: string) => void
+    getByLeadID: (leadId: string) => Promise<Order | null>;
+    patchFormData: (patch: Partial<FormData>) => void;
     // searchOrder: (leadId?: string,phone?:string) => Promise<Order | null>;
 }
 
@@ -176,7 +180,9 @@ export const useOrderStore = create<OrderState>()(
 
             // ===== ПОЛЬЗОВАТЕЛЬ =====
             setCurrentUser: (user) => {
-                set({ currentUser: user }, false, 'setCurrentUser');
+                set({ currentUser: user }, false, 'setCurrentUser')
+                localStorage.setItem('currentUser', JSON.stringify(user))
+                ;
             },
             login: async (at, password) => {
                 try {
@@ -668,6 +674,88 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
+            updateOrder: async (leadId: string) => {
+                const { formData, selectedServices, validateForm, currentUser } = get();
+
+                // Валидация
+                const errors = validateForm();
+                if (errors.length > 0) {
+                    set({ error: errors.join(', ') });
+                    return null;
+                }
+
+                set({ isSaving: true, error: null });
+
+                try {
+                    // Преобразуем ServiceItem[] обратно в формат для сервера
+                    const orderServices: OrderService[] = selectedServices.map(service =>
+                        convertServiceItemToOrderService(service, ['mount'])
+                    );
+
+                    // Подготавливаем данные для обновления
+                    const updateData = {
+                        leadName: formData.customerName,
+                        phone: formData.phoneNumber,
+                        text_status: formData.text_status,
+                        address: formData.address,
+                        zip_code: formData.zipCode,
+                        date: formData.date,
+                        time: formData.time,
+                        city: formData.city,
+                        manager_id: formData.masterId,
+                        master: formData.masterName,
+                        comment: formData.description,
+                        team: formData.teamId,
+                        services: orderServices,
+                        total: get().getTotalPrice(),
+                        // Добавляем информацию об изменении
+                        updatedBy: currentUser?.userAt || '',
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    // Отправляем запрос на обновление
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/orders/${leadId}`,
+                        {
+                            method: 'PUT', // или PATCH в зависимости от вашего API
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updateData)
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error('Failed to update order');
+                    }
+
+                    const updatedOrder = await response.json();
+
+                    // Обновляем стор
+                    set(state => ({
+                        currentOrder: updatedOrder,
+                        orders: state.orders.map(o =>
+                            o.order_id === leadId ? updatedOrder : o
+                        ),
+                        myOrders: state.myOrders.map(o =>
+                            o.order_id === leadId ? updatedOrder : o
+                        ),
+                        isSaving: false,
+                        error: null
+                    }));
+
+                    // Опционально: очищаем форму после успешного обновления
+                    // get().resetForm();
+
+                    return updatedOrder;
+
+                } catch (error) {
+                    console.error('Update order error:', error);
+                    set({
+                        error: 'Failed to update order',
+                        isSaving: false
+                    });
+                    return null;
+                }
+            },
             cancelTelegramOrder: () => {
                 const { currentTelegramOrder } = get();
 
@@ -760,15 +848,58 @@ export const useOrderStore = create<OrderState>()(
                     return null;
                 }
             },
+            patchFormData: (patch: Partial<FormData>) =>
+                set(s => ({ formData: { ...s.formData, ...patch } }), false, 'patchFormData'),
+            getByLeadID: async (leadId: string): Promise<Order | null> => {
+                try {
+                    const res = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/orderByLeadId/${leadId}`
+                    );
+                    if (!res.ok) throw new Error('Failed to fetch order');
+
+                    const order: Order | null = await res.json();
+                    if (!order) return null;
+
+                    // одним вызовом заполняем форму
+                    get().patchFormData(mapOrderToFormPatch(order));
+
+                    console.log(order);
+                    return order;
+                } catch (error) {
+                    console.error(`Error in getByLeadID for leadId=${leadId}:`, error);
+                    return null;
+                }
+            },
+
 
             // ===== ОСТАЛЬНЫЕ ДЕЙСТВИЯ =====
             fetchOrders: async () => {
                 set({ isLoading: true, error: null });
 
                 try {
-                    const { currentUser } = get();
+                    let { currentUser } = get();
+
                     if (!currentUser) {
-                        throw new Error('User not authenticated');
+                        const storageUser = sessionStorage.getItem("currentUser");
+                        if (storageUser) {
+                            try {
+                                currentUser = JSON.parse(storageUser);
+                                set({ currentUser });
+                            } catch (parseError) {
+                                console.error('Invalid user data in sessionStorage:', parseError);
+                                sessionStorage.removeItem("currentUser");
+                            }
+                        }
+                    }
+
+                    // Проверяем, есть ли теперь пользователь
+                    if (!currentUser) {
+                        throw new Error('User not authenticated. Please login.');
+                    }
+
+                    // Проверяем наличие userAt
+                    if (!currentUser.userAt) {
+                        throw new Error('User data is incomplete. Please login again.');
                     }
 
                     // Убираем "@" если он есть
@@ -776,23 +907,55 @@ export const useOrderStore = create<OrderState>()(
                         ? currentUser.userAt.slice(1)
                         : currentUser.userAt;
 
+                    // Делаем запрос
                     const response = await fetch(
                         `https://bot-crm-backend-756832582185.us-central1.run.app` +
                         `/api/user/myOrders/${encodeURIComponent(atClean)}`
                     );
+
+                    // Проверяем статус ответа
                     if (!response.ok) {
-                        throw new Error('Failed to fetch orders');
+                        if (response.status === 401) {
+                            // Если 401 - пользователь не авторизован на сервере
+                            sessionStorage.removeItem("currentUser");
+                            set({ currentUser: null });
+                            throw new Error('Session expired. Please login again.');
+                        }
+                        throw new Error(`Failed to fetch orders: ${response.statusText}`);
                     }
 
+                    // Парсим ответ
                     const data = await response.json() as { orders: Order[] };
-                    console.log(data)
-                    set({ orders: data.orders, isLoading: false });
+                    console.log('Orders fetched successfully:', data);
+
+                    // Сохраняем заказы в стор
+                    set({
+                        orders: data.orders || [],
+                        isLoading: false,
+                        error: null
+                    });
+
                 } catch (error) {
                     console.error('Fetch orders error:', error);
-                    set({ error: 'Failed to fetch orders', isLoading: false });
+
+                    // Формируем понятное сообщение об ошибке
+                    const errorMessage = error instanceof Error
+                        ? error.message
+                        : 'Failed to fetch orders. Please try again.';
+
+                    set({
+                        error: errorMessage,
+                        isLoading: false,
+                        orders: []
+                    });
+
+                    // Если ошибка авторизации - можно перенаправить на логин
+                    if (errorMessage.includes('login') || errorMessage.includes('authenticated')) {
+                        // Опционально: перенаправление на страницу логина
+                        // window.location.href = '/login';
+                    }
                 }
             },
-
             // searchOrder: async (leadId, phone?:string) => {
             //
             // }

@@ -28,7 +28,7 @@ export default function Masters({ team, city }: MastersProps) {
                 <h2 className="text-lg font-semibold text-gray-900"> 👷 Masters</h2>
             </div>
             <div>
-                <select className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" onChange={(e => updateFormData("masterName",e.target.value))}>
+                <select className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" value={formData.masterName} onChange={(e => updateFormData("masterName",e.target.value))}>
                     <option value="">Select a master</option>
                     {filteredMasters.length > 0 ? (
                         filteredMasters.map((master, index) => (
