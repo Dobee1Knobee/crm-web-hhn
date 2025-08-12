@@ -9,7 +9,7 @@ import OrderForm from "@/app/form/components/OrderForm/OrderForm";
 import Sidebar from "@/app/form/components/Sidebar";
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core";
 import { useState, useEffect } from "react";
-import { DropArea } from "@/app/form/components/DropArea";
+import { DropArea } from "@/app/changeOrder/components/DropArea";
 import { useOrderStore } from "@/stores/orderStore";
 
 // Временный тип для совместимости с существующим DropArea
@@ -26,7 +26,7 @@ interface ServiceItem {
     customPrice?: number;
 }
 
-export default function Home() {
+export default function ChangeOrder() {
     const at = "devapi1";
     const user = useUserByAt("devapi1");
 

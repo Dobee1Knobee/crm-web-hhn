@@ -62,6 +62,8 @@ export interface ServiceMaterial {
 export interface OrderService {
     label: string;
     diagonal?: string;
+
+    value?: string;
     count: number;
     workType: string[];
     message?: string;
@@ -111,7 +113,7 @@ export interface Order {
     date?: string; // строка, как в модели
     manager_id?: string;
     manager_price?: number;
-
+    created_at?: Date;
     // ===== СИСТЕМНЫЕ ПОЛЯ =====
     miles: number[];
     response_time: string[];
@@ -137,7 +139,6 @@ export interface Order {
     total?: number;
     services: OrderService[];
     time?: string;
-
     // ===== ИСТОРИЯ И МЕТАДАННЫЕ =====
     original?: Record<string, unknown>;
     changes: OrderChange[];
@@ -173,6 +174,7 @@ export interface CreateOrderFormData {
 export interface ServiceItem {
     id: string;
     name: string;
+    value?: string;
     price: number;
     quantity?: number;
     orderId?: number;

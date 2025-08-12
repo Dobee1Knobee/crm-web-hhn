@@ -1,4 +1,4 @@
-// page.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ И ОШИБОК ESLINT
+// LoginForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ И ОШИБОК ESLINT
 "use client";
 import "@/app/global.css";
 import { useUserByAt } from "@/hooks/useUserByAt";
@@ -49,17 +49,7 @@ export default function Home() {
     const [activeService, setActiveService] = useState<ServiceItem | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
 
-    // Устанавливаем пользователя в store при загрузке
-    useEffect(() => {
-        if (user) {
-            setCurrentUser({
-                userId: user.manager_id?.toString() || 'unknown',
-                userName: user.name || 'Unknown User',
-                userAt: user.at || 'unknown_at',
-                team: user.team?.toString() || 'A'
-            });
-        }
-    }, [user, setCurrentUser]);
+
 
     // Обработчик начала перетаскивания
     const handleDragStart = (event: DragStartEvent) => {

@@ -12,6 +12,8 @@ import {
 } from '@/types/formDataType';
 import {state} from "sucrase/dist/types/parser/traverser/base";
 import {mapOrderToFormPatch} from "@/utils/mapOrderToForm";
+import {mapApiServicesToSelected} from "@/utils/mapApiServicesToSelected";
+import {serviceCatalog} from "@/catalog/serviceCatalog";
 
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
 export interface FormData {
@@ -78,7 +80,7 @@ export interface OrderState {
     teamBufferOrders: TeamBufferOrder[];
     telegramOrders: TelegramOrder[];
     myOrders: Order[];
-
+    currentLeadID?: string;
     // ===== TELEGRAM =====
     currentTelegramOrder: TelegramOrder | null;
     isWorkingOnTelegramOrder: boolean;
@@ -137,7 +139,7 @@ export interface OrderState {
     // ===== ДЕЙСТВИЯ С ГОТОВЫМИ ЗАКАЗАМИ =====
     changeStatus: (status: string,leadId:string) => void;
     initFromStorage: () => void
-    updateOrder: (leadId: string) => void
+    updateOrder: (leadId: string | undefined) => void
     getByLeadID: (leadId: string) => Promise<Order | null>;
     patchFormData: (patch: Partial<FormData>) => void;
     // searchOrder: (leadId?: string,phone?:string) => Promise<Order | null>;
@@ -850,23 +852,36 @@ export const useOrderStore = create<OrderState>()(
             },
             patchFormData: (patch: Partial<FormData>) =>
                 set(s => ({ formData: { ...s.formData, ...patch } }), false, 'patchFormData'),
+
+
             getByLeadID: async (leadId: string): Promise<Order | null> => {
                 try {
+                    set({ isLoading: true, error: null });
                     const res = await fetch(
                         `https://bot-crm-backend-756832582185.us-central1.run.app/api/orderByLeadId/${leadId}`
                     );
-                    if (!res.ok) throw new Error('Failed to fetch order');
+                    if (!res.ok) throw new Error("Failed to fetch order");
 
-                    const order: Order | null = await res.json();
-                    if (!order) return null;
+                    const order = (await res.json()) as Order | null;
+                    if (!order) { set({ isLoading: false }); return null; }
 
-                    // одним вызовом заполняем форму
-                    get().patchFormData(mapOrderToFormPatch(order));
+                    const patch = mapOrderToFormPatch(order);
 
-                    console.log(order);
+                    const selected = mapApiServicesToSelected(order.services ?? [], serviceCatalog);
+
+                    // одним батчем
+                    set(s => ({
+                        formData: { ...s.formData, ...patch },
+                        currentLeadID: leadId,
+                        selectedServices: selected,
+                        currentOrder: order,
+                        isLoading: false
+                    }), false, "getByLeadID:prefill");
+
                     return order;
                 } catch (error) {
                     console.error(`Error in getByLeadID for leadId=${leadId}:`, error);
+                    set({ isLoading: false, error: "Не удалось получить заказ" });
                     return null;
                 }
             },

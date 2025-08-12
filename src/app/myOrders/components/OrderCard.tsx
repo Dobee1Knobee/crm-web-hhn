@@ -166,7 +166,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
 
         if (order) {
             console.log("Заказ найден:", order);
-            router.push("/form")
+            router.push("/changeOrder")
             // здесь можно положить в state, отобразить в форме и т.п.
         } else {
             console.warn("Заказ не найден");
@@ -179,11 +179,11 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
     // Текущий статус: из order.text_status (RU) → enum
     const currentStatus: OrderStatus = ruToEnum[order.text_status || 'Оформлен'] || 'ORDER_STATUS'
 
-    // Время: приоритет — поле date (если не пустое), иначе createdAt
-    const fromDate = useMemo(() => {
-        const d = (order.date && order.date.trim()) ? readDate(order.date) : readDate(order.createdAt)
-        return d
-    }, [order.date, order.createdAt])
+    // // Время: приоритет — поле date (если не пустое), иначе createdAt
+    // const fromDate = useMemo(() => {
+    //     const d = (order.date && order.date.trim()) ? readDate(order.date) : readDate(order.createdAt)
+    //     return d
+    // }, [order.date, order.createdAt])
 
     // Резюме услуг
     const mainLabel = order.services?.[0]?.label
@@ -225,7 +225,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
         // Если нормальная дата
         const d = (order.date && order.date.trim())
             ? readDate(order.date)
-            : readDate(order.createdAt);
+            : readDate(order.date);
         return d ? formatDateTime(d) : '';
     }, [order.date, order.time, order.createdAt]);
 

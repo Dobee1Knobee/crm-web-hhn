@@ -332,6 +332,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
     const {
         formData,
         currentUser,
+        currentLeadID,
         isWorkingOnTelegramOrder,
         currentTelegramOrder,
         isSaving,
@@ -544,7 +545,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                     if (!currentUser) return alert("Please login to save order");
                                     const ok = isWorkingOnTelegramOrder
                                         ? await useOrderStore.getState().createOrderFromTelegram()
-                                        : await useOrderStore.getState().updateOrder(currentUser.userAt);
+                                        : useOrderStore.getState().updateOrder(currentLeadID);
                                     if (!ok) {
                                         const errs = useOrderStore.getState().validateForm();
                                         alert(errs.length ? `❌ Fix:\n\n${errs.join("\n")}` : "❌ Failed to create order");
