@@ -11,6 +11,7 @@ import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/
 import { useState, useEffect } from "react";
 import { DropArea } from "@/app/form/components/DropArea";
 import { useOrderStore } from "@/stores/orderStore";
+import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm";
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -115,6 +116,7 @@ export default function Home() {
                     <div className="flex-1 flex overflow-hidden">
                         {/* Left side - Form */}
                         <div className="w-1/2 p-6 overflow-y-auto">
+                            <ButtonResetForm/>
                             <OrderForm user={user} />
                         </div>
 

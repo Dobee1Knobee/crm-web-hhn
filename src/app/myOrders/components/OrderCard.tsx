@@ -2,11 +2,27 @@ import React, { useMemo, useState } from 'react'
 import {useOrderStore} from "@/stores/orderStore";
 import Order from "@/types/formDataType";
 import {useRouter} from "next/navigation";
+import ClientInfoModal from "@/app/myOrders/components/ClientInfoModal";
 
 // Тип под твой документ из Mongo (без жёстких зависимостей)
 export type MongoDate = string | { $date: string }
 export type MongoId   = string | { $oid: string }
-
+import {
+    Calendar,
+    User,
+    MapPin,
+    Package,
+    DollarSign,
+    Eye,
+    Edit,
+    Clock,
+    CheckCircle,
+    XCircle,
+    AlertCircle,
+    RefreshCw,
+    Search,
+    Plus, FileText
+} from 'lucide-react';
 export type OrderDoc = {
     _id?: MongoId
     owner?: string
@@ -68,10 +84,7 @@ function formatDateTime(d?: Date) {
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
         ' в ' + d.toLocaleTimeString('ru-RU', { hour: 'numeric', minute: '2-digit' })
 }
-function currency(n?: number, sym: string = '$') {
-    const v = typeof n === 'number' ? n : 0
-    return sym + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)
-}
+
 
 // Палитра для бейджа статуса (по русскому статусу)
 const STATUS_MAP: Record<string, { bg: string; text: string }> = {
@@ -158,6 +171,11 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
         const leadId = order.order_id;              // именно ID заказа
         changeStatus(ru, leadId);
     }
+    function currency(n?: number, sym: string = '$') {
+        const v = typeof n === 'number' ? n : 0
+        return sym + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)
+    }
+
     const updateOrder = useOrderStore(state => state.getByLeadID);
     const router = useRouter();
     const handleUpdateOrder = async (leadId: string) => {
@@ -175,6 +193,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
 
     // ID для действий
     const oid = readOid(order._id) || order.order_id
+    const [clientModalOpen, setClientModalOpen] = useState(false) // новое состояние для модалки
 
     // Текущий статус: из order.text_status (RU) → enum
     const currentStatus: OrderStatus = ruToEnum[order.text_status || 'Оформлен'] || 'ORDER_STATUS'
@@ -230,6 +249,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
     }, [order.date, order.time, order.createdAt]);
 
     return (
+        <>
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 relative" data-status-root>
             {/* Заголовок */}
             <div className="flex items-start justify-between gap-3">
@@ -267,26 +287,35 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
 
             {/* Клиент */}
             <div className="mt-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xl">👤</div>
+                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
+                    <User size={20} className="text-gray-600" />
+                </div>
                 <div>
-                    <div className="font-semibold text-gray-900 flex items-center gap-2">{order.leadName || 'Без имени'} <span className="text-sm">📱</span></div>
+                    <div className="font-semibold text-gray-900 flex items-center gap-2">{order.leadName || 'Без имени'} <span className="text-sm"></span></div>
                     <div className="text-sm text-gray-500">Client ID: #{String(order.client_id ?? '').toString().padStart(5, '0')}</div>
                 </div>
             </div>
 
             {/* Адрес и дата */}
             <div className="mt-3 space-y-1 text-sm text-gray-700">
-                {(order.address || order.zip_code) && (
-                    <div>📍 {order.address}{order.zip_code ? `, ${order.zip_code}` : ''}</div>
-                )}
+                <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-gray-600" />
+                <span>{order.address}{order.zip_code ? `, ${order.zip_code}` : ''}</span>
+            </div>
                 {displayDateTime && (
-                    <div>📅 {displayDateTime}</div>
+                    <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-gray-600" />
+                        <span>{displayDateTime}</span>
+                    </div>
                 )}
             </div>
 
             {/* Услуги */}
             <div className="mt-4">
-                <div className="font-semibold text-gray-800">📦 Услуги:</div>
+                <div className="font-semibold text-gray-800 flex items-center gap-2">
+                    <Package size={16} className="text-gray-800" />
+                    <span>Услуги:</span>
+                </div>
                 <div className="text-sm text-gray-700 mt-1">{servicesSummary}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                     {serviceChips.map((c, i) => (
@@ -301,7 +330,10 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
             {/* Описание */}
             {(desc && desc.trim()) && (
                 <div className="mt-4">
-                    <div className="font-semibold text-gray-800">📝 Описание:</div>
+                    <div className="font-semibold text-gray-800 flex items-center gap-2">
+                        <FileText size={16} className="text-gray-800" />
+                        <span>Описание:</span>
+                    </div>
                     <div className="mt-1 bg-blue-50 text-gray-800 rounded-xl px-3 py-2 text-sm">
                         {short}
                         {desc.length > 120 && (
@@ -315,13 +347,39 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
 
             {/* Итог */}
             <div className="mt-5 flex items-center justify-between">
-                <div className="text-2xl font-bold">💰 {currency(order.total)}</div>
+                <div className="text-2xl font-bold flex items-center gap-2">
+                    <span>{currency(order.total)}</span>
+                </div>
                 <div className="flex items-center gap-3">
-                    <button title="Просмотр" onClick={() => onView?.(String(oid))} className="hover:opacity-80" aria-label="Просмотр">👁️</button>
-                    <button title="Редактировать" onClick={() =>handleUpdateOrder(order.order_id)} className="hover:opacity-80" aria-label="Редактировать">✏️</button>
+                    <button
+                        title="Просмотр клиента"
+                        onClick={() => setClientModalOpen(true)}
+                        className="hover:opacity-80 transition-opacity"
+                        aria-label="Просмотр информации о клиенте"
+                    >
+                        <Eye size={16} className="text-gray-600 hover:text-blue-600" />
+                    </button>
+
+                    <button
+                        title="Редактировать"
+                        onClick={() => handleUpdateOrder(order.order_id)}
+                        className="hover:opacity-80 transition-opacity"
+                        aria-label="Редактировать"
+                    >
+                        <Edit size={16} className="text-gray-600 hover:text-green-600" />
+                    </button>
                 </div>
             </div>
         </div>
+    <ClientInfoModal
+        isOpen={clientModalOpen}
+        onClose={() => setClientModalOpen(false)}
+        clientName={order.leadName}
+        clientPhone={order.phone}
+        clientId={order.client_id}
+        orderId={order.order_id}
+    />
+        </>
     )
 }
 

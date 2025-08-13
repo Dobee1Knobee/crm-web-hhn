@@ -79,7 +79,7 @@ export default function StatusPills({
                    `}
                         style={{
                             backgroundColor: colors.bg,
-                            opacity: isSelected ? 1 : 0.5,
+                            opacity: isSelected ? 1 : 0.3,
                             color: colors.text
                         }}
                     >

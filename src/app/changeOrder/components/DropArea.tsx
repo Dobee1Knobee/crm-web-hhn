@@ -3,6 +3,25 @@
 import React, { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useOrderStore } from "@/stores/orderStore";
+import {
+    ClipboardList,
+    Smartphone,
+    AlertTriangle,
+    X,
+    Minus,
+    Plus,
+    Trash2,
+    Save,
+    Send,
+    Tv,
+    DollarSign,
+    Paperclip,
+    Edit3,
+    Check,
+    XCircle,
+    AlertCircle,
+    Loader2
+} from 'lucide-react';
 
 export interface ServiceItem {
     id: string;
@@ -31,7 +50,7 @@ interface DropAreaProps {
     onDrop?: (draggedItem: any, targetMainItemId?: number) => void;
 }
 
-/* ---------- вспомогательные подкомпоненты (без изменений логики) ---------- */
+/* ---------- вспомогательные подкомпоненты ---------- */
 
 const DiagonalInput: React.FC<{
     mainItemId: number;
@@ -68,18 +87,23 @@ const DiagonalInput: React.FC<{
     return (
         <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-blue-800 flex items-center gap-1">
-                    📐 TV Diagonals:
+                <div className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                    <Tv className="w-4 h-4" />
+                    TV Diagonals:
                     {diagonals.length === 0 && (
-                        <span className="text-red-500 ml-1">⚠️ Please add TV sizes</span>
+                        <span className="text-red-500 ml-1 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Please add TV sizes
+                        </span>
                     )}
                 </div>
                 {!showInput && (
                     <button
                         onClick={() => setShowInput(true)}
-                        className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                        className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1"
                     >
-                        + Add Size
+                        <Plus className="w-3 h-3" />
+                        Add Size
                     </button>
                 )}
             </div>
@@ -91,11 +115,11 @@ const DiagonalInput: React.FC<{
                             key={i}
                             className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full"
                         >
-              {d}"
-              <button onClick={() => removeDiagonal(i)} className="hover:text-red-600 ml-1">
-                ×
-              </button>
-            </span>
+                            {d}"
+                            <button onClick={() => removeDiagonal(i)} className="hover:text-red-600 ml-1">
+                                <X className="w-3 h-3" />
+                            </button>
+                        </span>
                     ))}
                 </div>
             )}
@@ -113,8 +137,9 @@ const DiagonalInput: React.FC<{
                     />
                     <button
                         onClick={addDiagonal}
-                        className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                        className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 flex items-center gap-1"
                     >
+                        <Check className="w-3 h-3" />
                         Add
                     </button>
                     <button
@@ -122,8 +147,9 @@ const DiagonalInput: React.FC<{
                             setNewDiagonal("");
                             setShowInput(false);
                         }}
-                        className="px-2 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                        className="px-2 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400 flex items-center gap-1"
                     >
+                        <XCircle className="w-3 h-3" />
                         Cancel
                     </button>
                 </div>
@@ -157,9 +183,15 @@ const CustomPriceInput: React.FC<{
     return (
         <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
             <div className="flex items-center justify-between">
-                <div className="text-sm font-medium text-green-800 flex items-center gap-1">
-                    💰 Custom Price:
-                    {!customPrice && <span className="text-red-500 ml-1">⚠️ Please set price</span>}
+                <div className="text-sm font-medium text-green-800 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    Custom Price:
+                    {!customPrice && (
+                        <span className="text-red-500 ml-1 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Please set price
+                        </span>
+                    )}
                 </div>
 
                 {isEditing ? (
@@ -177,23 +209,25 @@ const CustomPriceInput: React.FC<{
                         />
                         <button
                             onClick={savePrice}
-                            className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+                            className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1"
                         >
+                            <Check className="w-3 h-3" />
                             Save
                         </button>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2">
-            <span className="text-green-700 font-semibold">
-              ${customPrice?.toFixed(2) || "0.00"}
-            </span>
+                        <span className="text-green-700 font-semibold">
+                            ${customPrice?.toFixed(2) || "0.00"}
+                        </span>
                         <button
                             onClick={() => {
                                 setIsEditing(true);
                                 setTempPrice(customPrice?.toString() || "");
                             }}
-                            className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+                            className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1"
                         >
+                            <Edit3 className="w-3 h-3" />
                             Edit
                         </button>
                     </div>
@@ -224,8 +258,9 @@ const SubDropZone: React.FC<{
                         : "border-gray-300 bg-gray-50"
             }`}
         >
-            <div className="text-sm text-gray-600 mb-2 font-medium">
-                📎 Additional Services & Materials Drop Zone
+            <div className="text-sm text-gray-600 mb-2 font-medium flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                Additional Services & Materials Drop Zone
             </div>
 
             {subItems.length > 0 ? (
@@ -245,14 +280,14 @@ const SubDropZone: React.FC<{
                                                 : "bg-yellow-100 text-yellow-600"
                                         }`}
                                     >
-                    {s.category}
-                  </span>
+                                        {s.category}
+                                    </span>
                                 </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                <span className="text-sm text-blue-600 font-semibold">
-                  ${s.price} × {s.quantity || 1} = {(s.price * (s.quantity || 1)).toFixed(2)}
-                </span>
+                                <span className="text-sm text-blue-600 font-semibold">
+                                    ${s.price} × {s.quantity || 1} = {(s.price * (s.quantity || 1)).toFixed(2)}
+                                </span>
                                 <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
                                     <button
                                         onClick={() =>
@@ -264,13 +299,13 @@ const SubDropZone: React.FC<{
                                                 (s.quantity || 1) - 1
                                             )
                                         }
-                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-600 text-xs font-bold hover:bg-red-50 hover:text-red-600"
+                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-600 hover:bg-red-50 hover:text-red-600 flex items-center justify-center"
                                     >
-                                        −
+                                        <Minus className="w-3 h-3" />
                                     </button>
                                     <span className="w-6 text-center text-xs font-bold text-gray-800">
-                    {s.quantity || 1}
-                  </span>
+                                        {s.quantity || 1}
+                                    </span>
                                     <button
                                         onClick={() =>
                                             onUpdateSubItemQuantity &&
@@ -281,17 +316,17 @@ const SubDropZone: React.FC<{
                                                 (s.quantity || 1) + 1
                                             )
                                         }
-                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-600 text-xs font-bold hover:bg-blue-50 hover:text-blue-600"
+                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center"
                                     >
-                                        +
+                                        <Plus className="w-3 h-3" />
                                     </button>
                                     <button
                                         onClick={() =>
                                             onRemoveSubItem && s.orderId && onRemoveSubItem(mainItemId, s.orderId)
                                         }
-                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-400 text-xs hover:bg-red-50 hover:text-red-600 ml-1"
+                                        className="w-6 h-6 bg-white rounded-md shadow-sm text-gray-400 hover:bg-red-50 hover:text-red-600 ml-1 flex items-center justify-center"
                                     >
-                                        ×
+                                        <X className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
@@ -302,8 +337,9 @@ const SubDropZone: React.FC<{
                 <div className="text-center text-gray-400 py-2">
                     <div className="text-sm">Drop additional services & materials here</div>
                     {draggedItem && ["additional", "materials"].includes(draggedItem.category) && (
-                        <div className="text-xs text-green-600 font-medium mt-1">
-                            ✨ Ready to accept "{draggedItem.name}"
+                        <div className="text-xs text-green-600 font-medium mt-1 flex items-center justify-center gap-1">
+                            <Check className="w-3 h-3" />
+                            Ready to accept "{draggedItem.name}"
                         </div>
                     )}
                 </div>
@@ -332,7 +368,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
     const {
         formData,
         currentUser,
-        currentLeadID,
         isWorkingOnTelegramOrder,
         currentTelegramOrder,
         isSaving,
@@ -342,6 +377,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
         saveToTeamBuffer,
         validateForm,
         getTotalPrice,
+        currentLeadID
     } = useOrderStore();
 
     const [editingPrice, setEditingPrice] = useState<number | null>(null);
@@ -387,25 +423,31 @@ export const DropArea: React.FC<DropAreaProps> = ({
                 {/* Верхняя часть - заголовок */}
                 <div className="text-center mb-4 flex-shrink-0">
                     <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2">
-                        📋 Order Builder
+                        <ClipboardList className="w-6 h-6" />
+                        Order Builder
                         {isWorkingOnTelegramOrder && currentTelegramOrder && (
-                            <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                                📱 Telegram: {currentTelegramOrder.customerName}
+                            <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full flex items-center gap-1">
+                                <Smartphone className="w-4 h-4" />
+                                Telegram: {currentTelegramOrder.customerName}
                             </span>
                         )}
                     </h2>
 
                     {error && (
                         <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                            <div className="text-red-600 font-semibold text-sm">❌ {error}</div>
+                            <div className="text-red-600 font-semibold text-sm flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4" />
+                                {error}
+                            </div>
                         </div>
                     )}
 
                     {isAdditionalItem ? (
                         hasMainServices ? (
                             <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1">
-                                    ⚠️ Additional services must be dropped on main services
+                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    Additional services must be dropped on main services
                                 </div>
                                 <div className="text-red-500 text-xs">
                                     Drop "{draggedItem.name}" directly onto a main service card below, not in this zone
@@ -413,7 +455,10 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             </div>
                         ) : (
                             <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1">⚠️ Please add main service first</div>
+                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    Please add main service first
+                                </div>
                                 <div className="text-red-500 text-xs">
                                     Additional services like "{draggedItem?.name}" must be added to main services. Drop main service here
                                     first.
@@ -430,7 +475,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     {items.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-center text-gray-400">
                             <div>
-                                <div className="text-7xl sm:text-8xl mb-4 opacity-50">📋</div>
+                                <ClipboardList className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 opacity-50" />
                                 <div className="text-base sm:text-lg font-medium text-gray-500 italic">
                                     Your order is empty. Start by dragging main services or additional items.
                                 </div>
@@ -474,9 +519,9 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                                     onClick={() =>
                                                         item.orderId && onUpdateQuantity?.(item.orderId, (item.quantity || 1) - 1)
                                                     }
-                                                    className="w-8 h-8 bg-white rounded-lg shadow-sm text-gray-600 font-bold hover:bg-red-50 hover:text-red-600"
+                                                    className="w-8 h-8 bg-white rounded-lg shadow-sm text-gray-600 hover:bg-red-50 hover:text-red-600 flex items-center justify-center"
                                                 >
-                                                    −
+                                                    <Minus className="w-4 h-4" />
                                                 </button>
                                                 <span className="w-8 text-center font-bold text-gray-800">
                                                     {item.quantity || 1}
@@ -485,17 +530,17 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                                     onClick={() =>
                                                         item.orderId && onUpdateQuantity?.(item.orderId, (item.quantity || 1) + 1)
                                                     }
-                                                    className="w-8 h-8 bg-white rounded-lg shadow-sm text-gray-600 font-bold hover:bg-blue-50 hover:text-blue-600"
+                                                    className="w-8 h-8 bg-white rounded-lg shadow-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center"
                                                 >
-                                                    +
+                                                    <Plus className="w-4 h-4" />
                                                 </button>
                                             </div>
 
                                             <button
                                                 onClick={() => onRemove(item.orderId?.toString() || item.id)}
-                                                className="bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
+                                                className="bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200 flex items-center gap-1"
                                             >
-                                                ✕
+                                                <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>
@@ -532,58 +577,78 @@ export const DropArea: React.FC<DropAreaProps> = ({
                 {/* Нижняя часть - Total и кнопки */}
                 <div className="flex-shrink-0 border-t border-gray-200 pt-4 mt-4">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl text-center">
-                        <div className="text-xl sm:text-2xl font-bold">Total: ${total.toFixed(2)}</div>
-                        <div className="text-xs sm:text-sm mt-1 opacity-90">
-                            {isWorkingOnTelegramOrder
-                                ? `📱 Telegram Order: ${currentTelegramOrder?.customerName || ""}`
-                                : `🏠 New Order: ${formData.customerName || "Unnamed Customer"}`}
+                        <div className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+                            Total: ${total.toFixed(2)}
+                        </div>
+                        <div className="text-xs sm:text-sm mt-1 opacity-90 flex items-center justify-center gap-1">
+                            {isWorkingOnTelegramOrder ? (
+                                <>
+                                    <Smartphone className="w-4 h-4" />
+                                    Telegram Order: {currentTelegramOrder?.customerName || ""}
+                                </>
+                            ) : (
+                                <>
+                                    New Order: {formData.customerName || "Unnamed Customer"}
+                                </>
+                            )}
                         </div>
 
                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <button
                                 onClick={async () => {
-                                    if (!currentUser) return alert("Please login to save order");
                                     const ok = isWorkingOnTelegramOrder
                                         ? await useOrderStore.getState().createOrderFromTelegram()
                                         : useOrderStore.getState().updateOrder(currentLeadID);
                                     if (!ok) {
                                         const errs = useOrderStore.getState().validateForm();
-                                        alert(errs.length ? `❌ Fix:\n\n${errs.join("\n")}` : "❌ Failed to create order");
                                     }
                                 }}
-                                disabled={isSaving || items.length === 0}
-                                className={`py-3 rounded-2xl border shadow transition ${
-                                    isSaving || items.length === 0
+                                className={`py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${
+                                    isSaving
                                         ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300"
                                         : "bg-white text-black border-gray-300 hover:shadow-md hover:bg-gray-50"
                                 }`}
+                                disabled={isSaving}
                             >
-                                💾 {isWorkingOnTelegramOrder ? "Complete Telegram Order" : "Save Order"}
+                                {isSaving ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                {isWorkingOnTelegramOrder ? "Complete Telegram Order" : "Save Order"}
                             </button>
 
                             <button
                                 onClick={async () => {
-                                    if (!currentUser) return alert("Please login to send to buffer");
-                                    if (isWorkingOnTelegramOrder) return alert("Telegram orders are saved directly");
                                     await useOrderStore.getState().saveToTeamBuffer();
-                                    alert("🚀 Order sent to team buffer successfully!");
                                 }}
-                                disabled={isSaving || items.length === 0 || isWorkingOnTelegramOrder}
-                                className={`py-3 rounded-2xl shadow transition ${
-                                    isSaving || items.length === 0 || isWorkingOnTelegramOrder
+                                className={`py-3 rounded-2xl shadow transition flex items-center justify-center gap-2 ${
+                                    isSaving || isWorkingOnTelegramOrder
                                         ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                                         : "bg-orange-400 text-white hover:bg-orange-500"
                                 }`}
+                                disabled={isSaving || isWorkingOnTelegramOrder}
                                 title={isWorkingOnTelegramOrder ? "Telegram orders are saved directly" : "Send to team buffer"}
                             >
-                                🚀 Send to Buffer
+                                <Send className="w-4 h-4" />
+                                Send to Buffer
                             </button>
                         </div>
 
-                        <div className="mt-3 text-[11px] sm:text-xs opacity-80">
-                            {isWorkingOnTelegramOrder
-                                ? "📱 Complete this Telegram order to create final order"
-                                : "💾 Save = Create final order · 🚀 Buffer = Share with team"}
+                        <div className="mt-3 text-[11px] sm:text-xs opacity-80 flex items-center justify-center gap-2">
+                            {isWorkingOnTelegramOrder ? (
+                                <>
+                                    <Smartphone className="w-3 h-3" />
+                                    Complete this Telegram order to create final order
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-3 h-3" />
+                                    Save = Create final order ·
+                                    <Send className="w-3 h-3" />
+                                    Buffer = Share with team
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

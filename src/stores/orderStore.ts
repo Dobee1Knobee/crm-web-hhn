@@ -1,4 +1,4 @@
-// stores/orderStore.ts - РАБОЧАЯ ВЕРСИЯ
+// stores/orderStore.ts - РАБОЧАЯ ВЕРСИЯ С ПАГИНАЦИЕЙ
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import {
@@ -29,6 +29,28 @@ export interface FormData {
     masterName: string;
     description: string;
     teamId: string;
+}
+
+// ===== ПАГИНАЦИЯ =====
+interface PaginationParams {
+    page?: number;
+    limit?: number;
+}
+
+interface PaginationInfo {
+    currentPage: number;
+    limit: number;
+    totalOrders: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+}
+
+interface FetchOrdersResponse {
+    success: boolean;
+    orders: Order[];
+    count: number;
+    pagination: PaginationInfo;
 }
 
 // ===== КОМАНДНЫЙ БУФЕР =====
@@ -81,6 +103,12 @@ export interface OrderState {
     telegramOrders: TelegramOrder[];
     myOrders: Order[];
     currentLeadID?: string;
+
+    // ===== ПАГИНАЦИЯ =====
+    pagination: PaginationInfo | null;
+    currentPage: number;
+    ordersPerPage: number;
+
     // ===== TELEGRAM =====
     currentTelegramOrder: TelegramOrder | null;
     isWorkingOnTelegramOrder: boolean;
@@ -127,8 +155,34 @@ export interface OrderState {
 
     // ===== ЗАКАЗЫ =====
     createOrder: (userOwner: string) => Promise<Order | null>;
-    fetchOrders: (query?: OrderSearchQuery) => Promise<void>;
+    fetchOrders: (paginationParams?: PaginationParams, query?: OrderSearchQuery) => Promise<FetchOrdersResponse | void>;
     fetchMyOrders: (owner: string) => Promise<void>;
+    checkDoubleOrders: (phoneNumber:string) => Promise<Order[]>;
+
+    // ===== ПОИСК ======
+    searchResults: {
+        allOrders: Order[];
+        myOrders: Order[];
+        notMyOrders: Order[];
+        counts: {
+            total: number;
+            my: number;
+            notMy: number;
+        };
+        searchType: string;
+        searchQuery: string;
+        searchedBy: string;
+    } | null;
+    isSearching: boolean;
+    // ===== ПАГИНАЦИЯ =====
+    fetchNextPage: () => Promise<void>;
+    fetchPrevPage: () => Promise<void>;
+    fetchPage: (page: number) => Promise<void>;
+    changePageSize: (limit: number) => Promise<void>;
+    getTotalPages: () => number;
+    getTotalOrders: () => number;
+    hasNextPage: () => boolean;
+    hasPrevPage: () => boolean;
 
     // ===== УТИЛИТЫ =====
     setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string,manager_id:string }) => void;
@@ -143,6 +197,10 @@ export interface OrderState {
     getByLeadID: (leadId: string) => Promise<Order | null>;
     patchFormData: (patch: Partial<FormData>) => void;
     // searchOrder: (leadId?: string,phone?:string) => Promise<Order | null>;
+    // ===== ФУНКЦИИ ПОИСКА =====
+    searchOrders: (query: string) => Promise<void>;
+    clearSearchResults: () => void;
+    viewNotMyOrder: (orderId: string) => Promise<void>;
 }
 
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
@@ -179,6 +237,11 @@ export const useOrderStore = create<OrderState>()(
             isSaving: false,
             error: null,
             currentUser: null,
+
+            // ===== ПАГИНАЦИЯ =====
+            pagination: null,
+            currentPage: 1,
+            ordersPerPage: 10,
 
             // ===== ПОЛЬЗОВАТЕЛЬ =====
             setCurrentUser: (user) => {
@@ -711,7 +774,7 @@ export const useOrderStore = create<OrderState>()(
                         services: orderServices,
                         total: get().getTotalPrice(),
                         // Добавляем информацию об изменении
-                        updatedBy: currentUser?.userAt || '',
+                        changedBy: currentUser?.userAt || '',
                         updatedAt: new Date().toISOString()
                     };
 
@@ -823,7 +886,7 @@ export const useOrderStore = create<OrderState>()(
                     };
                     console.log(orderData);
 
-                    const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/api/addOrder', {
+                    const response = await fetch('http://localhost:8080/api/addOrder', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(orderData)
@@ -886,13 +949,16 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
-
-            // ===== ОСТАЛЬНЫЕ ДЕЙСТВИЯ =====
-            fetchOrders: async () => {
+            // ===== ЗАКАЗЫ С ПАГИНАЦИЕЙ =====
+            fetchOrders: async (paginationParams?: PaginationParams, query?: OrderSearchQuery) => {
                 set({ isLoading: true, error: null });
 
                 try {
-                    let { currentUser } = get();
+                    let { currentUser, currentPage, ordersPerPage } = get();
+
+                    // Параметры пагинации с значениями по умолчанию
+                    const page = paginationParams?.page ?? currentPage ?? 1;
+                    const limit = paginationParams?.limit ?? ordersPerPage ?? 10;
 
                     if (!currentUser) {
                         const storageUser = sessionStorage.getItem("currentUser");
@@ -922,16 +988,27 @@ export const useOrderStore = create<OrderState>()(
                         ? currentUser.userAt.slice(1)
                         : currentUser.userAt;
 
-                    // Делаем запрос
-                    const response = await fetch(
-                        `https://bot-crm-backend-756832582185.us-central1.run.app` +
-                        `/api/user/myOrders/${encodeURIComponent(atClean)}`
+                    // Формируем URL с параметрами пагинации
+                    const url = new URL(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/user/myOrders/${encodeURIComponent(atClean)}`
                     );
+
+                    // Добавляем параметры пагинации
+                    url.searchParams.append('page', page.toString());
+                    url.searchParams.append('limit', limit.toString());
+
+                    // Добавляем дополнительные параметры поиска если есть
+                    if (query?.owner) url.searchParams.append('owner', query.owner);
+                    if (query?.transfer_status) url.searchParams.append('transfer_status', query.transfer_status);
+
+                    console.log('Fetching orders with pagination:', { page, limit, query });
+
+                    // Делаем запрос
+                    const response = await fetch(url.toString());
 
                     // Проверяем статус ответа
                     if (!response.ok) {
                         if (response.status === 401) {
-                            // Если 401 - пользователь не авторизован на сервере
                             sessionStorage.removeItem("currentUser");
                             set({ currentUser: null });
                             throw new Error('Session expired. Please login again.');
@@ -940,20 +1017,24 @@ export const useOrderStore = create<OrderState>()(
                     }
 
                     // Парсим ответ
-                    const data = await response.json() as { orders: Order[] };
+                    const data = await response.json() as FetchOrdersResponse;
                     console.log('Orders fetched successfully:', data);
 
-                    // Сохраняем заказы в стор
+                    // Сохраняем заказы и информацию о пагинации в стор
                     set({
                         orders: data.orders || [],
+                        pagination: data.pagination || null,
+                        currentPage: page,
+                        ordersPerPage: limit,
                         isLoading: false,
                         error: null
                     });
 
+                    return data; // Возвращаем данные для дополнительной обработки
+
                 } catch (error) {
                     console.error('Fetch orders error:', error);
 
-                    // Формируем понятное сообщение об ошибке
                     const errorMessage = error instanceof Error
                         ? error.message
                         : 'Failed to fetch orders. Please try again.';
@@ -961,26 +1042,211 @@ export const useOrderStore = create<OrderState>()(
                     set({
                         error: errorMessage,
                         isLoading: false,
-                        orders: []
+                        orders: [],
+                        pagination: null
                     });
 
-                    // Если ошибка авторизации - можно перенаправить на логин
                     if (errorMessage.includes('login') || errorMessage.includes('authenticated')) {
                         // Опционально: перенаправление на страницу логина
-                        // window.location.href = '/login';
+                        window.location.href = '/login';
                     }
+
+                    throw error; // Пробрасываем ошибку для обработки в компонентах
                 }
             },
-            // searchOrder: async (leadId, phone?:string) => {
-            //
-            // }
+
+            // ===== МЕТОДЫ ПАГИНАЦИИ =====
+            fetchNextPage: async () => {
+                const { pagination, currentPage } = get();
+                if (pagination?.hasNext) {
+                    await get().fetchOrders({ page: currentPage + 1 });
+                }
+            },
+
+            fetchPrevPage: async () => {
+                const { pagination, currentPage } = get();
+                if (pagination?.hasPrev) {
+                    await get().fetchOrders({ page: currentPage - 1 });
+                }
+            },
+
+            fetchPage: async (page: number) => {
+                await get().fetchOrders({ page });
+            },
+
+            changePageSize: async (limit: number) => {
+                await get().fetchOrders({ page: 1, limit }); // При изменении размера страницы идем на первую
+            },
+
+            // ===== ГЕТТЕРЫ ПАГИНАЦИИ =====
+            getTotalPages: () => {
+                const { pagination } = get();
+                return pagination?.totalPages ?? 0;
+            },
+
+            getTotalOrders: () => {
+                const { pagination } = get();
+                return pagination?.totalOrders ?? 0;
+            },
+
+            hasNextPage: () => {
+                const { pagination } = get();
+                return pagination?.hasNext ?? false;
+            },
+
+            hasPrevPage: () => {
+                const { pagination } = get();
+                return pagination?.hasPrev ?? false;
+            },
+
+            // ===== ПРОВЕРКА ДУБЛЕЙ =====
+            checkDoubleOrders: async (phoneNumber: string): Promise<Order[]> => {
+                try {
+                    if (!phoneNumber.trim() || phoneNumber.length < 8) {
+                        return [];
+                    }
+
+                    const encodedPhone = encodeURIComponent(phoneNumber.trim());
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/doubleOrder?phone=${encodedPhone}`,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+
+                    if (!response.ok) {
+                        console.error(`API error: ${response.status} ${response.statusText}`);
+                        return [];
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success && Array.isArray(data.orders)) {
+                        return data.orders;
+                    } else {
+                        console.warn('Unexpected API response format:', data);
+                        return [];
+                    }
+                } catch (e) {
+                    console.error('Ошибка при поиске дублей заказов:', e);
+                    return [];
+                }
+            },
+            // Добавить в создание store (внутри create функции):
+
+// ===== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ПОИСКА =====
+            searchResults: null,
+            isSearching: false,
+
+// ===== ФУНКЦИИ ПОИСКА =====
+            searchOrders: async (query: string) => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    set({ error: 'User not authenticated for search' });
+                    return;
+                }
+
+                set({ isSearching: true, error: null });
+
+                try {
+                    const encodedQuery = encodeURIComponent(query.trim());
+                    const at = currentUser.userAt.startsWith('@')
+                        ? currentUser.userAt.slice(1)
+                        : currentUser.userAt;
+
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/search?q=${encodedQuery}&at=${encodeURIComponent(at)}`
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`Search failed: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        set({
+                            searchResults: {
+                                allOrders: data.allOrders,
+                                myOrders: data.myOrders,
+                                notMyOrders: data.notMyOrders,
+                                counts: data.counts,
+                                searchType: data.searchType,
+                                searchQuery: data.searchQuery,
+                                searchedBy: data.searchedBy
+                            },
+                            isSearching: false,
+                            error: null
+                        });
+
+                        console.log(`🔍 Search completed: Found ${data.counts.total} orders (${data.counts.my} mine, ${data.counts.notMy} others)`);
+                    } else {
+                        throw new Error(data.error || 'Search failed');
+                    }
+
+                } catch (error) {
+                    console.error('Search error:', error);
+                    set({
+                        error: error instanceof Error ? error.message : 'Search failed',
+                        isSearching: false,
+                        searchResults: null
+                    });
+                }
+            },
+
+            clearSearchResults: () => {
+                set({
+                    searchResults: null,
+                    error: null
+                });
+            },
+
+            viewNotMyOrder: async (orderId: string) => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    console.warn('Cannot log view - user not authenticated');
+                    return;
+                }
+
+                try {
+                    const at = currentUser.userAt.startsWith('@')
+                        ? currentUser.userAt.slice(1)
+                        : currentUser.userAt;
+
+                    // Логируем просмотр чужого заказа
+                    await fetch(
+                        'https://bot-crm-backend-756832582185.us-central1.run.app/api/orders/log-view',
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                orderId: orderId,
+                                viewedBy: at,
+                                viewedAt: new Date().toISOString(),
+                                action: 'view_not_my_order'
+                            })
+                        }
+                    );
+
+                    console.log(`📝 Logged view of order ${orderId} by ${at}`);
+
+                } catch (error) {
+                    console.error('Failed to log order view:', error);
+                    // Не показываем ошибку пользователю, это фоновое логирование
+                }
+            },
 
             fetchMyOrders: async (owner) => {
-                await get().fetchOrders({ owner, transfer_status: TransferStatus.ACTIVE });
+                await get().fetchOrders(undefined, { owner, transfer_status: TransferStatus.ACTIVE });
                 set(state => ({ myOrders: state.orders }));
             },
-// В интерфейсе:
 
+            // ===== ИЗМЕНЕНИЕ СТАТУСА =====
             changeStatus: async (status, leadId) => {
                 set({ isSaving: true, error: null }, false, 'changeStatus:start');
                 try {
@@ -1020,6 +1286,8 @@ export const useOrderStore = create<OrderState>()(
                     set({ isSaving: false, error: 'Не удалось обновить статус' }, false, 'changeStatus:error');
                 }
             },
+
+            // ===== УТИЛИТЫ =====
             setLoading: (loading) => set({ isLoading: loading }),
             setError: (error) => set({ error }),
 
@@ -1035,7 +1303,10 @@ export const useOrderStore = create<OrderState>()(
                 isWorkingOnTelegramOrder: false,
                 isLoading: false,
                 isSaving: false,
-                error: null
+                error: null,
+                pagination: null,
+                currentPage: 1,
+                ordersPerPage: 10
             })
         })),
         {
