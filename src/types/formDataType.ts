@@ -188,7 +188,7 @@ export interface ServiceItem {
 // Данные для создания заказа в MongoDB
 export interface CreateOrderData {
     // Базовые обязательные поля
-    owner: string;
+    owner: string | undefined;
     team: string;
 
     // Информация о клиенте

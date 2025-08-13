@@ -1,3 +1,5 @@
+import {useOrderStore} from "@/stores/orderStore";
+
 const colorMap = {
     indigo: {
         from: 'from-indigo-50',

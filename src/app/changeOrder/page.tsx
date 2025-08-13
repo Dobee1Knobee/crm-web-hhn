@@ -110,7 +110,7 @@ export default function ChangeOrder() {
 
                 <div className="flex-1 flex flex-col">
                     <Header />
-                    <StatusPills />
+                    <StatusPills  />
 
                     <div className="flex-1 flex overflow-hidden">
                         {/* Left side - Form */}

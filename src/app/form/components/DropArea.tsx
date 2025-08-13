@@ -597,7 +597,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                 onClick={async () => {
                                     const ok = isWorkingOnTelegramOrder
                                         ? await useOrderStore.getState().createOrderFromTelegram()
-                                        : await useOrderStore.getState().createOrder(currentUser.userAt);
+                                        : await useOrderStore.getState().createOrder(currentUser?.userAt);
                                     if (!ok) {
                                         const errs = useOrderStore.getState().validateForm();
                                     }

@@ -3,7 +3,7 @@ import { OrderStatus } from "@/types/api";
 import OrderCard from './OrderCard';
 import { useOrderStore } from "@/stores/orderStore";
 import { TransferStatus } from '@/types/formDataType';
-import {FileText, Folder, RefreshCw} from "lucide-react";
+import { FileText, Folder, RefreshCw, Search, X } from "lucide-react";
 
 export default function OrdersDemo() {
     const {
@@ -11,7 +11,7 @@ export default function OrdersDemo() {
         orders,
         isLoading,
         error,
-        // Пагинация
+        // Pagination
         pagination,
         currentPage,
         ordersPerPage,
@@ -23,13 +23,19 @@ export default function OrdersDemo() {
         getTotalOrders,
         hasNextPage,
         hasPrevPage,
-        // Статусы
-        changeStatus
+        // Status
+        changeStatus,
+        // Search
+        searchOrders,
+        searchResults,
+        isSearching,
+        currentUser
     } = useOrderStore();
 
-    // Локальные состояния для фильтров
+    // Local states for filters
     const [statusFilter, setStatusFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchMode, setIsSearchMode] = useState(false);
 
     useEffect(() => {
         fetchOrders();
@@ -37,36 +43,59 @@ export default function OrdersDemo() {
 
     const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
         console.log(`Changing status of order ${orderId} to ${newStatus}`);
-        // Здесь будет API вызов для изменения статуса
+        // Here will be API call to change status
     };
 
     const handleViewDetails = (orderId: string) => {
         console.log(`Viewing details for order ${orderId}`);
-        // Здесь будет переход на страницу деталей заказа
+        // Here will be navigation to order details page
     };
 
     const handleEditOrder = (orderId: string) => {
         console.log(`Editing order ${orderId}`);
-        // Здесь будет переход на страницу редактирования заказа
+        // Here will be navigation to order edit page
     };
 
     const handleRefresh = () => {
+        if (isSearchMode) {
+            setSearchQuery('');
+            setIsSearchMode(false);
+        }
         fetchOrders({ page: currentPage, limit: ordersPerPage });
     };
 
-    // Генерируем номера страниц для отображения
+    const handleSearch = async () => {
+        if (!searchQuery.trim()) return;
+
+        setIsSearchMode(true);
+        await searchOrders(searchQuery.trim());
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setIsSearchMode(false);
+        fetchOrders({ page: currentPage, limit: ordersPerPage });
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
+    // Generate page numbers for display
     const getPageNumbers = () => {
         const totalPages = getTotalPages();
         const pages = [];
         const maxVisible = 5;
 
         if (totalPages <= maxVisible) {
-            // Если страниц мало, показываем все
+            // If few pages, show all
             for (let i = 1; i <= totalPages; i++) {
                 pages.push(i);
             }
         } else {
-            // Показываем с умом: текущая +/- 2
+            // Show with ellipsis: current +/- 2
             const start = Math.max(1, currentPage - 2);
             const end = Math.min(totalPages, currentPage + 2);
 
@@ -91,7 +120,9 @@ export default function OrdersDemo() {
     const totalPages = getTotalPages();
     const totalOrders = getTotalOrders();
 
-    console.log(orders);
+    // Determine which orders to display - только мои заказы
+    const displayOrders = isSearchMode ? searchResults?.myOrders || [] : orders;
+    const displayCount = isSearchMode ? searchResults?.counts?.my || 0 : totalOrders;
 
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
@@ -99,11 +130,25 @@ export default function OrdersDemo() {
                 <div className="flex flex-row items-center gap-2">
                     <Folder size={24} className="text-gray-800" />
                     <h1 className="text-2xl font-bold text-gray-800">
-                        My Orders
+                        {isSearchMode ? 'Search Results' : 'My Orders'}
                     </h1>
                 </div>
                 <div className="text-gray-600">
-                    {pagination ? (
+                    {isSearchMode ? (
+                        <>
+                            Found {displayCount} your orders
+                            {searchResults?.searchQuery && (
+                                <span className="ml-2 text-blue-600">
+                                    for "{searchResults.searchQuery}" ({searchResults.searchType})
+                                </span>
+                            )}
+                            {searchResults?.counts && searchResults.counts.notMy > 0 && (
+                                <span className="ml-2 text-gray-500">
+                                    ({searchResults.counts.notMy} other team orders hidden)
+                                </span>
+                            )}
+                        </>
+                    ) : pagination ? (
                         <>
                             Showing {((currentPage - 1) * ordersPerPage) + 1}-{Math.min(currentPage * ordersPerPage, totalOrders)} of {totalOrders} orders
                         </>
@@ -113,53 +158,99 @@ export default function OrdersDemo() {
                 </div>
             </div>
 
-            {/* Фильтры */}
+            {/* Search and Filters */}
             <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-4 flex-wrap">
-                        <select
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="">All Statuses</option>
-                            <option value={OrderStatus.IN_WORK}>В работе</option>
-                            <option value={OrderStatus.COMPLETED}>Завершен</option>
-                            <option value={OrderStatus.CANCELLED}>Отменен</option>
-                            <option value={OrderStatus.INVALID}>Невалидный</option>
-                        </select>
-
-                        <input
-                            type="text"
-                            placeholder="Search by ID or customer name..."
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-
-                        {/* Выбор количества на странице */}
+                        {/* Search Input */}
                         <div className="flex items-center gap-2">
-                            <label className="text-sm text-gray-700">Per page:</label>
-                            <select
-                                value={ordersPerPage}
-                                onChange={(e) => changePageSize(Number(e.target.value))}
-                                disabled={isLoading}
-                                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by ID, phone, address, or ZIP..."
+                                    className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm w-80"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                onClick={handleSearch}
+                                disabled={!searchQuery.trim() || isSearching}
+                                className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                            </select>
+                                {isSearching ? (
+                                    <>
+                                        <RefreshCw size={16} className="animate-spin" />
+                                        Searching...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Search size={16} />
+                                        Search
+                                    </>
+                                )}
+                            </button>
+                            {isSearchMode && (
+                                <button
+                                    onClick={handleClearSearch}
+                                    className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-600 transition-colors duration-200 flex items-center gap-2"
+                                >
+                                    <X size={16} />
+                                    Clear
+                                </button>
+                            )}
                         </div>
+
+                        {/* Status Filter - Only for regular orders, not search */}
+                        {!isSearchMode && (
+                            <select
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="">All Statuses</option>
+                                <option value={OrderStatus.IN_WORK}>In Work</option>
+                                <option value={OrderStatus.COMPLETED}>Completed</option>
+                                <option value={OrderStatus.CANCELLED}>Cancelled</option>
+                                <option value={OrderStatus.INVALID}>Invalid</option>
+                            </select>
+                        )}
+
+                        {/* Per Page Selector - Only for regular orders */}
+                        {!isSearchMode && (
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-700">Per page:</label>
+                                <select
+                                    value={ordersPerPage}
+                                    onChange={(e) => changePageSize(Number(e.target.value))}
+                                    disabled={isLoading}
+                                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     <button
                         onClick={handleRefresh}
-                        disabled={isLoading}
+                        disabled={isLoading || isSearching}
                         className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                        {isLoading ? (
+                        {(isLoading || isSearching) ? (
                             <>
                                 <RefreshCw size={16} className="animate-spin" />
                                 Loading...
@@ -167,40 +258,64 @@ export default function OrdersDemo() {
                         ) : (
                             <>
                                 <RefreshCw size={16} />
-                                Refresh
+                                {isSearchMode ? 'Back to Orders' : 'Refresh'}
                             </>
                         )}
                     </button>
                 </div>
             </div>
 
-            {/* Ошибка */}
+            {/* Search Results Summary */}
+            {isSearchMode && searchResults && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="font-medium text-blue-900">Your Search Results</h3>
+                            <div className="text-sm text-blue-700 mt-1">
+                                <span className="font-medium text-green-700">{searchResults.counts.my}</span> of your orders found
+                                {searchResults.counts.notMy > 0 && (
+                                    <span className="ml-4 text-gray-600">
+                                        ({searchResults.counts.notMy} other team orders not shown)
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                            Search type: {searchResults.searchType}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Error */}
             {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                     <div className="flex items-center gap-2">
-                        <span className="text-red-600">❌</span>
+                        <span className="text-red-600">⚠</span>
                         <span className="text-red-800 font-medium">Error:</span>
                         <span className="text-red-700">{error}</span>
                     </div>
                 </div>
             )}
 
-            {/* Индикатор загрузки */}
-            {isLoading && (
+            {/* Loading Indicator */}
+            {(isLoading || isSearching) && (
                 <div className="flex items-center justify-center py-12">
                     <div className="flex items-center gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span className="text-gray-600">Loading orders...</span>
+                        <span className="text-gray-600">
+                            {isSearching ? 'Searching orders...' : 'Loading orders...'}
+                        </span>
                     </div>
                 </div>
             )}
 
-            {/* Список заказов */}
-            {!isLoading && (
+            {/* Orders List */}
+            {!isLoading && !isSearching && (
                 <>
-                    {orders.length > 0 ? (
+                    {displayOrders.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {orders.map(order => (
+                            {displayOrders.map(order => (
                                 <OrderCard
                                     key={order._id}
                                     order={order}
@@ -211,26 +326,33 @@ export default function OrdersDemo() {
                     ) : (
                         <div className="bg-white rounded-lg shadow-sm p-12 text-center">
                             <div className="text-gray-400 text-6xl mb-4">📋</div>
-                            <h3 className="text-xl font-medium text-gray-600 mb-2">No orders found</h3>
-                            <p className="text-gray-500">There are no orders matching your criteria.</p>
+                            <h3 className="text-xl font-medium text-gray-600 mb-2">
+                                {isSearchMode ? 'No your orders found' : 'No orders found'}
+                            </h3>
+                            <p className="text-gray-500">
+                                {isSearchMode
+                                    ? 'No orders belonging to you match the search criteria. Try different keywords.'
+                                    : 'There are no orders matching your criteria.'
+                                }
+                            </p>
                         </div>
                     )}
                 </>
             )}
 
-            {/* Пагинация */}
-            {pagination && totalPages > 1 && !isLoading && (
+            {/* Pagination - Only for regular orders, not search */}
+            {!isSearchMode && pagination && totalPages > 1 && !isLoading && (
                 <div className="mt-8">
-                    {/* Информация о результатах */}
+                    {/* Information about results */}
                     <div className="flex items-center justify-center mb-4">
                         <div className="text-sm text-gray-700">
                             Page {currentPage} of {totalPages} • Total {totalOrders} orders
                         </div>
                     </div>
 
-                    {/* Навигация по страницам */}
+                    {/* Page navigation */}
                     <div className="flex items-center justify-center gap-1">
-                        {/* Кнопка "Предыдущая" */}
+                        {/* Previous button */}
                         <button
                             onClick={fetchPrevPage}
                             disabled={!hasPrevPage() || isLoading}
@@ -239,7 +361,7 @@ export default function OrdersDemo() {
                             ← Previous
                         </button>
 
-                        {/* Номера страниц */}
+                        {/* Page numbers */}
                         {getPageNumbers().map((page, index) => (
                             <div key={index}>
                                 {page === '...' ? (
@@ -260,7 +382,7 @@ export default function OrdersDemo() {
                             </div>
                         ))}
 
-                        {/* Кнопка "Следующая" */}
+                        {/* Next button */}
                         <button
                             onClick={fetchNextPage}
                             disabled={!hasNextPage() || isLoading}
@@ -270,7 +392,7 @@ export default function OrdersDemo() {
                         </button>
                     </div>
 
-                    {/* Быстрая навигация для больших списков */}
+                    {/* Fast navigation for large lists */}
                     {totalPages > 10 && (
                         <div className="flex items-center justify-center gap-4 mt-4">
                             <div className="flex items-center gap-2">

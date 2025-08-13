@@ -2,7 +2,6 @@
 import CustomerInfo from "@/app/changeOrder/components/CustomerInfo";
 import DateAndTime from "@/app/changeOrder/components/DateAndTime";
 import {User} from "@/hooks/useUserByAt";
-import Cities from "@/app/changeOrder/components/Cities";
 import {useEffect} from "react";
 import OrderDescription from "@/app/changeOrder/components/OrderDescription";
 import ServicesWindow from "@/app/changeOrder/components/ServicesWindow";
@@ -30,7 +29,6 @@ export default function OrderForm({ user, leadId }: Props) {
         <div className="space-y-6">
             <CustomerInfo/>
             <DateAndTime/>
-            <Cities team={team}  />
             <Masters team={team} city={city} />
             <OrderDescription/>
             <ServicesWindow/>

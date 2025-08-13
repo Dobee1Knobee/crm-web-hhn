@@ -1,4 +1,4 @@
-// stores/orderStore.ts - РАБОЧАЯ ВЕРСИЯ С ПАГИНАЦИЕЙ
+// stores/orderStore.ts - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ С WEBSOCKET
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import {
@@ -10,16 +10,25 @@ import {
     convertServiceItemToOrderService,
     OrderSearchQuery
 } from '@/types/formDataType';
-import {state} from "sucrase/dist/types/parser/traverser/base";
-import {mapOrderToFormPatch} from "@/utils/mapOrderToForm";
-import {mapApiServicesToSelected} from "@/utils/mapApiServicesToSelected";
-import {serviceCatalog} from "@/catalog/serviceCatalog";
+import { mapOrderToFormPatch } from "@/utils/mapOrderToForm";
+import { mapApiServicesToSelected } from "@/utils/mapApiServicesToSelected";
+import { serviceCatalog } from "@/catalog/serviceCatalog";
+import toast from "react-hot-toast";
+// === SOCKET CONFIG ===
+const SOCKET_URL =
+    (process.env.NEXT_PUBLIC_SOCKET_URL?.trim() || 'https://bot-crm-backend-756832582185.us-central1.run.app')
+        .replace(/\/+$/, ''); // обрежем хвостовые слэши
+
+// Жёсткая проверка, чтобы не получить "http://http/..."
+if (!/^https?:\/\//i.test(SOCKET_URL)) {
+    console.error('❌ Некорректный NEXT_PUBLIC_SOCKET_URL:', SOCKET_URL);
+}
 
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
 export interface FormData {
     customerName: string;
     phoneNumber: string;
-    text_status : string
+    text_status: string;
     address: string;
     zipCode: string;
     date: string;
@@ -127,6 +136,27 @@ export interface OrderState {
         manager_id: string;
     } | null;
 
+    // ===== 🆕 WEBSOCKET ПОЛЯ =====
+    socket: any | null;
+    isSocketConnected: boolean;
+    notifications: Array<{
+        id: number;
+        type: string;
+        title: string;
+        message: string;
+        order_id?: string;
+        transferred_from?: string;
+        timestamp: Date;
+        read: boolean;
+    }>;
+
+    // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
+    connectSocket: () => void;
+    disconnectSocket: () => void;
+    markNotificationAsRead: (notificationId: number) => void;
+    clearNotifications: () => void;
+    getUnreadNotificationsCount: () => number;
+
     // ===== ДЕЙСТВИЯ С ФОРМОЙ =====
     updateFormData: (field: keyof FormData, value: string) => void;
     resetForm: () => void;
@@ -154,10 +184,11 @@ export interface OrderState {
     cancelTelegramOrder: () => void;
 
     // ===== ЗАКАЗЫ =====
-    createOrder: (userOwner: string) => Promise<Order | null>;
+    //TODO: поправить создание заказа
+    createOrder: (userOwner?: string) => Promise<Order | null>;
     fetchOrders: (paginationParams?: PaginationParams, query?: OrderSearchQuery) => Promise<FetchOrdersResponse | void>;
     fetchMyOrders: (owner: string) => Promise<void>;
-    checkDoubleOrders: (phoneNumber:string) => Promise<Order[]>;
+    checkDoubleOrders: (phoneNumber: string) => Promise<Order[]>;
 
     // ===== ПОИСК ======
     searchResults: {
@@ -174,6 +205,7 @@ export interface OrderState {
         searchedBy: string;
     } | null;
     isSearching: boolean;
+
     // ===== ПАГИНАЦИЯ =====
     fetchNextPage: () => Promise<void>;
     fetchPrevPage: () => Promise<void>;
@@ -185,18 +217,19 @@ export interface OrderState {
     hasPrevPage: () => boolean;
 
     // ===== УТИЛИТЫ =====
-    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string,manager_id:string }) => void;
+    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string; manager_id: string }) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     reset: () => void;
-    login: (at:string,password:string) => Promise<void>;
+    login: (at: string, password: string) => Promise<void>;
+
     // ===== ДЕЙСТВИЯ С ГОТОВЫМИ ЗАКАЗАМИ =====
-    changeStatus: (status: string,leadId:string) => void;
-    initFromStorage: () => void
-    updateOrder: (leadId: string | undefined) => void
+    changeStatus: (status: string, leadId: string) => void;
+    initFromStorage: () => void;
+    updateOrder: (leadId: string | undefined) => void;
     getByLeadID: (leadId: string) => Promise<Order | null>;
     patchFormData: (patch: Partial<FormData>) => void;
-    // searchOrder: (leadId?: string,phone?:string) => Promise<Order | null>;
+
     // ===== ФУНКЦИИ ПОИСКА =====
     searchOrders: (query: string) => Promise<void>;
     clearSearchResults: () => void;
@@ -206,7 +239,7 @@ export interface OrderState {
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
 const initialFormData: FormData = {
     customerName: '',
-    text_status : "",
+    text_status: "",
     phoneNumber: '',
     address: '',
     zipCode: '',
@@ -216,7 +249,7 @@ const initialFormData: FormData = {
     masterId: '',
     masterName: '',
     description: '',
-    teamId: 'A'
+    teamId: 'Init'
 };
 
 // ===== СОЗДАНИЕ STORE =====
@@ -243,12 +276,152 @@ export const useOrderStore = create<OrderState>()(
             currentPage: 1,
             ordersPerPage: 10,
 
-            // ===== ПОЛЬЗОВАТЕЛЬ =====
-            setCurrentUser: (user) => {
-                set({ currentUser: user }, false, 'setCurrentUser')
-                localStorage.setItem('currentUser', JSON.stringify(user))
-                ;
+            // ===== 🆕 WEBSOCKET НАЧАЛЬНЫЕ ЗНАЧЕНИЯ =====
+            socket: null,
+            isSocketConnected: false,
+            notifications: [],
+
+            // ===== ПОИСК =====
+            searchResults: null,
+            isSearching: false,
+
+            // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
+            connectSocket: () => {
+                const state = get();
+                const { currentUser } = state;
+
+                // Проверяем, есть ли пользователь
+                if (!currentUser || !currentUser.team || !currentUser.userName) {
+                    console.log('❌ Нет данных пользователя для WebSocket');
+                    return;
+                }
+
+                // Если уже подключены - не подключаемся снова
+                if (state.socket && state.isSocketConnected) {
+                    console.log('⚡ WebSocket уже подключен');
+                    return;
+                }
+
+                // Закрываем предыдущее соединение если есть
+                if (state.socket) {
+                    state.socket.disconnect();
+                }
+
+                console.log(`🔌 Подключаемся как ${currentUser.userName} к команде ${currentUser.team}`);
+
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const io = require('socket.io-client');
+                console.log('🔗 SOCKET_URL =', SOCKET_URL);
+
+                const socket = io(SOCKET_URL, {
+                    transports: ['websocket'],   // убираем xhr-поллинг → не будет кривых http://http/... URL
+                    path: '/socket.io',          // стандартный путь (совпадает с сервером)
+                    reconnection: true,
+                    reconnectionAttempts: 10,
+                    reconnectionDelay: 1000,
+                });
+
+                // Обработчики событий
+                socket.on('connect', () => {
+                    console.log('✅ WebSocket подключен!', socket.id);
+                    set({ isSocketConnected: true });
+
+                    socket.emit('join-team', {
+                        team: currentUser.team,
+                        username: currentUser.userName
+                    });
+                });
+
+                socket.on('team-joined', (data: any) => {
+                    console.log('🎉 Присоединились к команде:', data);
+                });
+
+                socket.on('new-order-in-buffer', (data: any) => {
+                    toast.custom('🔔 НОВЫЙ ЗАКАЗ В БУФЕРЕ!', data);
+
+                    const notification = {
+                        id: Date.now(),
+                        type: 'new-order',
+                        title: 'Новый заказ в буфере',
+                        message: data.message,
+                        order_id: data.order_id,
+                        transferred_from: data.transferred_from,
+                        timestamp: new Date(),
+                        read: false
+                    };
+
+                    // Добавляем уведомление в store
+                    set(state => ({
+                        notifications: [notification, ...state.notifications]
+                    }));
+
+                    // Браузерное уведомление (если разрешено)
+                    if (Notification.permission === 'granted') {
+                        new Notification(notification.title, {
+                            body: notification.message,
+                            icon: '/favicon.ico'
+                        });
+                    }
+
+                    // Alert для тестирования
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('❌ WebSocket отключен');
+                    set({ isSocketConnected: false });
+                });
+
+                socket.on('error', (error: any) => {
+                    console.error('WebSocket ошибка:', error);
+                });
+
+                // Сохраняем socket в store
+                set({ socket });
             },
+
+            disconnectSocket: () => {
+                const { socket } = get();
+                if (socket) {
+                    console.log('🔌 Закрываем WebSocket соединение');
+                    socket.disconnect();
+                    set({
+                        socket: null,
+                        isSocketConnected: false
+                    });
+                }
+            },
+
+            markNotificationAsRead: (notificationId: number) => {
+                set(state => ({
+                    notifications: state.notifications.map(notification =>
+                        notification.id === notificationId
+                            ? { ...notification, read: true }
+                            : notification
+                    )
+                }));
+            },
+
+            clearNotifications: () => {
+                set({ notifications: [] });
+            },
+
+            getUnreadNotificationsCount: () => {
+                const { notifications } = get();
+                return notifications.filter(n => !n.read).length;
+            },
+
+            // ===== ПОЛЬЗОВАТЕЛЬ С АВТОПОДКЛЮЧЕНИЕМ WEBSOCKET =====
+            setCurrentUser: (user) => {
+                set({ currentUser: user }, false, 'setCurrentUser');
+                localStorage.setItem('currentUser', JSON.stringify(user));
+
+                // 🆕 АВТОМАТИЧЕСКИ ПОДКЛЮЧАЕМ WEBSOCKET после установки пользователя
+                setTimeout(() => {
+                    get().connectSocket();
+                }, 100); // Небольшая задержка для обновления state
+            },
+
             login: async (at, password) => {
                 try {
                     const res = await fetch(
@@ -267,19 +440,30 @@ export const useOrderStore = create<OrderState>()(
 
                     const data = await res.json();
                     set({ currentUser: data.user });
+                    sessionStorage.setItem('currentUser', JSON.stringify(data.user));
 
-                    sessionStorage.setItem('currentUser', JSON.stringify(data.user))
+                    // 🆕 ПОДКЛЮЧАЕМ WEBSOCKET после успешного логина
+                    setTimeout(() => {
+                        get().connectSocket();
+                    }, 100);
+
                 } catch (e) {
                     console.error('Login error:', e);
                     throw e;
                 }
             },
+
             initFromStorage: () => {
                 const raw = sessionStorage.getItem('currentUser');
                 if (raw) {
                     try {
                         const user = JSON.parse(raw);
                         set({ currentUser: user });
+
+                        // 🆕 АВТОПОДКЛЮЧЕНИЕ WEBSOCKET при инициализации
+                        setTimeout(() => {
+                            get().connectSocket();
+                        }, 100);
                     } catch {
                         sessionStorage.removeItem('currentUser');
                     }
@@ -374,7 +558,6 @@ export const useOrderStore = create<OrderState>()(
                 }, false, 'addService');
             },
 
-
             removeService: (serviceId) => {
                 set(state => {
                     let newServices = state.selectedServices.filter(s =>
@@ -408,8 +591,6 @@ export const useOrderStore = create<OrderState>()(
                     )
                 }), false, 'updateServiceQuantity');
             },
-
-
 
             updateServicePrice: (orderId, newPrice) => {
                 set(state => ({
@@ -618,7 +799,6 @@ export const useOrderStore = create<OrderState>()(
                     const prefilledFormData: FormData = {
                         customerName: telegramOrder.customerName,
                         phoneNumber: telegramOrder.phoneNumber,
-
                         text_status: telegramOrder.status,
                         address: '',
                         zipCode: '',
@@ -627,7 +807,7 @@ export const useOrderStore = create<OrderState>()(
                         city: 'New_York',
                         masterId: '',
                         masterName: '',
-                        description: `📝 Сообщение клиента:\n"${telegramOrder.customerMessage}"\n\n🔍 Дополнительная информация:`,
+                        description: `📝 Сообщение клиента:\n"${telegramOrder.customerMessage}"\n\n📋 Дополнительная информация:`,
                         teamId: telegramOrder.team
                     };
 
@@ -739,8 +919,106 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
-            updateOrder: async (leadId: string) => {
+            cancelTelegramOrder: () => {
+                const { currentTelegramOrder } = get();
+
+                if (!currentTelegramOrder) return;
+
+                set(state => ({
+                    currentTelegramOrder: null,
+                    isWorkingOnTelegramOrder: false,
+                    telegramOrders: state.telegramOrders.map(order =>
+                        order.id === currentTelegramOrder.id
+                            ? { ...order, status: 'accepted' as const }
+                            : order
+                    )
+                }));
+
+                get().resetForm();
+            },
+
+            // ===== СОЗДАНИЕ ЗАКАЗА =====
+            createOrder: async (userOwner ) => {
+                if (get().isWorkingOnTelegramOrder) {
+                    return get().createOrderFromTelegram();
+                }
+
+                const { formData, selectedServices, validateForm } = get();
+
+                const errors = validateForm();
+                if (errors.length > 0) {
+                    set({ error: errors.join(', ') });
+                    return null;
+                }
+
+                set({ isSaving: true, error: null });
+
+                try {
+                    const orderServices: OrderService[] = selectedServices.map(service =>
+                        convertServiceItemToOrderService(service, ['mount'])
+                    );
+
+                    const orderData: CreateOrderData = {
+                        owner: userOwner ,
+                        team: formData.teamId,
+                        leadName: formData.customerName,
+                        phone: formData.phoneNumber,
+                        address: formData.address,
+                        zip_code: formData.zipCode,
+                        city: formData.city,
+                        date: formData.date,
+                        time: formData.time,
+                        master: formData.masterName,
+                        manager_id: formData.masterId,
+                        comment: formData.description,
+                        services: orderServices,
+                        text_status: formData.text_status,
+                        total: get().getTotalPrice(),
+                        transfer_status: TransferStatus.ACTIVE,
+                        canceled: false,
+                        miles: [],
+                        response_time: [],
+                        visits: [],
+                        transfer_history: [],
+                        changes: []
+                    };
+                    console.log(orderData);
+
+                    const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/api/addOrder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(orderData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to create order');
+                    }
+
+                    const createdOrder: Order = await response.json();
+                    toast.success('Successfully created order');
+                    set(state => ({
+                        currentOrder: createdOrder,
+                        myOrders: [...state.myOrders, createdOrder],
+                        isSaving: false
+                    }));
+
+                    get().resetForm();
+                    return createdOrder;
+
+                } catch (error) {
+                    console.error('Create order error:', error);
+                    set({ error: 'Failed to create order', isSaving: false });
+                    return null;
+                }
+            },
+
+            updateOrder: async (leadId: string | undefined) => {
                 const { formData, selectedServices, validateForm, currentUser } = get();
+
+                if (!leadId) {
+                    set({ error: 'Lead ID is required for update' });
+                    return null;
+                }
 
                 // Валидация
                 const errors = validateForm();
@@ -806,14 +1084,12 @@ export const useOrderStore = create<OrderState>()(
                         isSaving: false,
                         error: null
                     }));
-
-                    // Опционально: очищаем форму после успешного обновления
-                    // get().resetForm();
-
+                    toast.success('Successfully updated order');
                     return updatedOrder;
 
                 } catch (error) {
                     console.error('Update order error:', error);
+                    toast.error('Failed to update order');
                     set({
                         error: 'Failed to update order',
                         isSaving: false
@@ -821,101 +1097,9 @@ export const useOrderStore = create<OrderState>()(
                     return null;
                 }
             },
-            cancelTelegramOrder: () => {
-                const { currentTelegramOrder } = get();
 
-                if (!currentTelegramOrder) return;
-
-                set(state => ({
-                    currentTelegramOrder: null,
-                    isWorkingOnTelegramOrder: false,
-                    telegramOrders: state.telegramOrders.map(order =>
-                        order.id === currentTelegramOrder.id
-                            ? { ...order, status: 'accepted' as const }
-                            : order
-                    )
-                }));
-
-                get().resetForm();
-            },
-
-            // ===== СОЗДАНИЕ ЗАКАЗА =====
-            createOrder: async (userOwner) => {
-                if (get().isWorkingOnTelegramOrder) {
-                    return get().createOrderFromTelegram();
-                }
-
-                const { formData, selectedServices, validateForm } = get();
-
-                const errors = validateForm();
-                if (errors.length > 0) {
-                    set({ error: errors.join(', ') });
-                    return null;
-                }
-
-                set({ isSaving: true, error: null });
-
-                try {
-                    const orderServices: OrderService[] = selectedServices.map(service =>
-                        convertServiceItemToOrderService(service, ['mount'])
-                    );
-
-                    const orderData: CreateOrderData = {
-                        owner: userOwner,
-                        team: formData.teamId,
-                        leadName: formData.customerName,
-                        phone: formData.phoneNumber,
-                        address: formData.address,
-                        zip_code: formData.zipCode,
-                        city: formData.city,
-                        date: formData.date,
-                        time :formData.time,
-                        master: formData.masterName,
-                        manager_id: formData.masterId,
-                        comment: formData.description,
-                        services: orderServices,
-                        text_status : formData.text_status,
-                        total: get().getTotalPrice(),
-                        transfer_status: TransferStatus.ACTIVE,
-                        canceled: false,
-                        miles: [],
-                        response_time: [],
-                        visits: [],
-                        transfer_history: [],
-                        changes: []
-                    };
-                    console.log(orderData);
-
-                    const response = await fetch('http://localhost:8080/api/addOrder', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(orderData)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to create order');
-                    }
-
-                    const createdOrder: Order = await response.json();
-
-                    set(state => ({
-                        currentOrder: createdOrder,
-                        myOrders: [...state.myOrders, createdOrder],
-                        isSaving: false
-                    }));
-
-                    get().resetForm();
-                    return createdOrder;
-
-                } catch (error) {
-                    console.error('Create order error:', error);
-                    set({ error: 'Failed to create order', isSaving: false });
-                    return null;
-                }
-            },
             patchFormData: (patch: Partial<FormData>) =>
                 set(s => ({ formData: { ...s.formData, ...patch } }), false, 'patchFormData'),
-
 
             getByLeadID: async (leadId: string): Promise<Order | null> => {
                 try {
@@ -926,10 +1110,12 @@ export const useOrderStore = create<OrderState>()(
                     if (!res.ok) throw new Error("Failed to fetch order");
 
                     const order = (await res.json()) as Order | null;
-                    if (!order) { set({ isLoading: false }); return null; }
+                    if (!order) {
+                        set({ isLoading: false });
+                        return null;
+                    }
 
                     const patch = mapOrderToFormPatch(order);
-
                     const selected = mapApiServicesToSelected(order.services ?? [], serviceCatalog);
 
                     // одним батчем
@@ -1055,6 +1241,11 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
+            fetchMyOrders: async (owner) => {
+                await get().fetchOrders(undefined, { owner, transfer_status: TransferStatus.ACTIVE });
+                set(state => ({ myOrders: state.orders }));
+            },
+
             // ===== МЕТОДЫ ПАГИНАЦИИ =====
             fetchNextPage: async () => {
                 const { pagination, currentPage } = get();
@@ -1135,13 +1326,8 @@ export const useOrderStore = create<OrderState>()(
                     return [];
                 }
             },
-            // Добавить в создание store (внутри create функции):
 
-// ===== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ПОИСКА =====
-            searchResults: null,
-            isSearching: false,
-
-// ===== ФУНКЦИИ ПОИСКА =====
+            // ===== ФУНКЦИИ ПОИСКА =====
             searchOrders: async (query: string) => {
                 const { currentUser } = get();
 
@@ -1233,17 +1419,12 @@ export const useOrderStore = create<OrderState>()(
                         }
                     );
 
-                    console.log(`📝 Logged view of order ${orderId} by ${at}`);
+                    console.log(`🔍 Logged view of order ${orderId} by ${at}`);
 
                 } catch (error) {
                     console.error('Failed to log order view:', error);
                     // Не показываем ошибку пользователю, это фоновое логирование
                 }
-            },
-
-            fetchMyOrders: async (owner) => {
-                await get().fetchOrders(undefined, { owner, transfer_status: TransferStatus.ACTIVE });
-                set(state => ({ myOrders: state.orders }));
             },
 
             // ===== ИЗМЕНЕНИЕ СТАТУСА =====
@@ -1262,7 +1443,7 @@ export const useOrderStore = create<OrderState>()(
                         }
                     );
                     if (!res.ok) throw new Error('Failed to update status');
-
+                    toast.success("Order status changed successfully");
                     const json = await res.json(); // { success, message, order }
                     const updated = json.order;
                     console.log(updated);
@@ -1291,23 +1472,33 @@ export const useOrderStore = create<OrderState>()(
             setLoading: (loading) => set({ isLoading: loading }),
             setError: (error) => set({ error }),
 
-            reset: () => set({
-                currentOrder: null,
-                formData: initialFormData,
-                selectedServices: [],
-                orders: [],
-                teamBufferOrders: [],
-                telegramOrders: [],
-                myOrders: [],
-                currentTelegramOrder: null,
-                isWorkingOnTelegramOrder: false,
-                isLoading: false,
-                isSaving: false,
-                error: null,
-                pagination: null,
-                currentPage: 1,
-                ordersPerPage: 10
-            })
+            reset: () => {
+                // 🆕 ОТКЛЮЧАЕМ WEBSOCKET при сбросе
+                get().disconnectSocket();
+
+                set({
+                    currentOrder: null,
+                    formData: initialFormData,
+                    selectedServices: [],
+                    orders: [],
+                    teamBufferOrders: [],
+                    telegramOrders: [],
+                    myOrders: [],
+                    currentTelegramOrder: null,
+                    isWorkingOnTelegramOrder: false,
+                    isLoading: false,
+                    isSaving: false,
+                    error: null,
+                    pagination: null,
+                    currentPage: 1,
+                    ordersPerPage: 10,
+                    socket: null,
+                    isSocketConnected: false,
+                    notifications: [],
+                    searchResults: null,
+                    isSearching: false
+                });
+            }
         })),
         {
             name: 'order-store',

@@ -42,6 +42,8 @@ export default function Home() {
         updateServiceCustomPrice,
         updateSubServiceQuantity,
         removeSubService,
+        resetForm,
+        currentLeadID,
         getTotalPrice,
         setCurrentUser,
         formData,
@@ -51,7 +53,9 @@ export default function Home() {
     // Состояние только для drag & drop UI
     const [activeService, setActiveService] = useState<ServiceItem | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
-
+    useEffect(() => {
+        resetForm();
+    }, [currentLeadID]);
     // Устанавливаем пользователя в store при загрузке
 
 

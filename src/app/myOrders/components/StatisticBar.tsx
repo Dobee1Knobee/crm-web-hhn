@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import {useOrderStore} from "@/stores/orderStore";
 
 export default function StatisticBar() {
     // State for the current time string
@@ -30,9 +31,6 @@ export default function StatisticBar() {
     return (
         <div className="bg-white shadow-lg rounded-2xl p-6 mb-6">
             <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                    Last updated{timeString ? `: ${timeString}` : ''}
-                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">

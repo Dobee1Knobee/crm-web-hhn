@@ -16,6 +16,7 @@ import {
     DollarSign,
     Lock
 } from "lucide-react";
+import Order from "@/types/formDataType";
 
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -28,7 +29,7 @@ export default function Sidebar() {
     const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // Состояния для модалки конфиденциальности
-    const [selectedNotMyOrder, setSelectedNotMyOrder] = useState(null);
+    const [selectedNotMyOrder, setSelectedNotMyOrder] = useState<Order>();
     const [showConfidentialModal, setShowConfidentialModal] = useState(false);
 
     const router = useRouter();
@@ -41,8 +42,11 @@ export default function Sidebar() {
         searchOrders,
         clearSearchResults,
         viewNotMyOrder,
+        currentUser,
         getByLeadID // Для загрузки заказа
     } = useOrderStore();
+
+    const { isSocketConnected} = useOrderStore();
 
     // Placeholder data для буфера
     const [bufferOrders] = useState([
@@ -113,7 +117,7 @@ export default function Sidebar() {
     };
 
     // Обработка клика по своему заказу
-    const handleMyOrderClick = async (order) => {
+    const handleMyOrderClick = async (order:Order) => {
         try {
             await getByLeadID(order.order_id);
             router.push('/changeOrder');
@@ -123,7 +127,7 @@ export default function Sidebar() {
     };
 
     // Обработка клика по чужому заказу
-    const handleNotMyOrderClick = (order) => {
+    const handleNotMyOrderClick = (order :Order) => {
         setSelectedNotMyOrder(order);
         setShowConfidentialModal(true);
     };
@@ -140,12 +144,12 @@ export default function Sidebar() {
 
     // Отмена просмотра
     const handleCancelView = () => {
-        setSelectedNotMyOrder(null);
+        setSelectedNotMyOrder(undefined);
         setShowConfidentialModal(false);
     };
 
     // Форматирование суммы
-    const formatCurrency = (amount) => {
+    const formatCurrency = (amount: number | undefined) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'USD'
@@ -174,6 +178,21 @@ export default function Sidebar() {
                     {isExpanded ? (
                         <div className="p-4 space-y-3 h-full flex flex-col">
                             {/* Navigation buttons */}
+                            <div>
+                                {isSocketConnected ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="bg-green-600 rounded-full w-3 h-3 inline-block"></span>
+                                        <span>You connected to team {currentUser?.team}</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="bg-red-600 rounded-full w-3 h-3 inline-block"></span>
+                                        <span>You disconnected</span>
+                                    </div>
+                                )}
+                            </div>
+
+
                             <div className="space-y-3">
                                 <button
                                     onClick={() => handleClick('new-order')}
@@ -298,7 +317,7 @@ export default function Sidebar() {
                                                         </div>
                                                         <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
                                                             <Calendar size={12} />
-                                                            {order.createdAt?.split('T')[0] || 'No date'}
+                                                            {order.createdAt?.toString().split('T')[0] || 'No date'}
                                                         </div>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-xs text-gray-500">
