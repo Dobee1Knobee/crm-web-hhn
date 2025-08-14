@@ -45,14 +45,10 @@ export default function Sidebar() {
         currentUser,
         getByLeadID // Для загрузки заказа
     } = useOrderStore();
-
+    const bufferCount = useOrderStore(state => state.bufferStats.totalCount);
     const { isSocketConnected} = useOrderStore();
 
-    // Placeholder data для буфера
-    const [bufferOrders] = useState([
-        { id: 1, customerName: 'John Smith', total: 320, items: 4, date: '2025-08-03', status: 'в работе' },
-        { id: 2, customerName: 'Mary Johnson', total: 150, items: 2, date: '2025-08-02', status: 'оформлен' },
-    ]);
+
 
     // Загрузка активного таба
     useEffect(() => {
@@ -218,9 +214,9 @@ export default function Sidebar() {
                                         <ClipboardList size={18} />
                                         <span>Buffer</span>
                                     </div>
-                                    {bufferOrders.length > 0 && (
+                                    {bufferCount > 0 && (
                                         <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                                            {bufferOrders.length}
+                                            {bufferCount}
                                         </span>
                                     )}
                                 </button>
@@ -324,7 +320,6 @@ export default function Sidebar() {
                                                                 {order.text_status || 'No status'}
                                                             </span>
                                                             <span className="font-semibold text-green-700 flex items-center gap-1">
-                                                                <DollarSign size={12} />
                                                                 {formatCurrency(order.total)}
                                                             </span>
                                                         </div>
@@ -404,9 +399,9 @@ export default function Sidebar() {
                                 title="Buffer"
                             >
                                 <ClipboardList size={18} />
-                                {bufferOrders.length > 0 && (
+                                {bufferCount > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                                        {bufferOrders.length}
+                                        {bufferCount}
                                     </span>
                                 )}
                             </button>

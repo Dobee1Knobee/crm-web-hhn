@@ -3,7 +3,6 @@ interface BufferCardProps {
     transferredFrom: string;
     team: string;
     timeAgo: string;
-    clientName: string;
     clientId: string;
     address?: string;
     date: string;
@@ -11,6 +10,7 @@ interface BufferCardProps {
     amount: number;
     type?: 'external' | 'internal' | 'pending';
     onClaim?: () => void;
+    disabledClaim?: boolean; // 🆕 можно отключать кнопку
 }
 
 export default function BufferCard({
@@ -18,15 +18,16 @@ export default function BufferCard({
                                        transferredFrom,
                                        team,
                                        timeAgo,
-                                       clientName,
                                        clientId,
                                        address = "Address not specified",
                                        date,
                                        time,
                                        amount,
                                        type = 'external',
-                                       onClaim
+                                       onClaim,
+                                       disabledClaim = false
                                    }: BufferCardProps) {
+
     const getTypeConfig = (orderType: string) => {
         switch (orderType) {
             case 'external':
@@ -85,9 +86,9 @@ export default function BufferCard({
             <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-gray-800">ID: {id}</h2>
                 <span className={`${config.badgeColor} text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1`}>
-                    <span>{config.icon}</span>
+          <span>{config.icon}</span>
                     {config.badge}
-                </span>
+        </span>
             </div>
 
             {/* Transfer info */}
@@ -102,12 +103,6 @@ export default function BufferCard({
                     <span className="mr-1">🕐</span>
                     <span className="whitespace-nowrap">{timeAgo}</span>
                 </div>
-            </div>
-
-            {/* Client name */}
-            <div className="flex items-center text-lg font-bold text-blue-600 mb-2">
-                <span className="mr-2">👤</span>
-                {clientName}
             </div>
 
             {/* Client ID */}
@@ -136,8 +131,11 @@ export default function BufferCard({
                 </div>
 
                 <button
-                    onClick={onClaim}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center"
+                    onClick={!disabledClaim ? onClaim : undefined}
+                    disabled={disabledClaim}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center
+            ${disabledClaim ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                    title={disabledClaim ? 'Недоступно' : 'Claim'}
                 >
                     <span className="mr-2">👋</span>
                     Claim

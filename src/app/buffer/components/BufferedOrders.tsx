@@ -1,287 +1,320 @@
 "use client"
 import BufferCard from "@/app/buffer/components/BufferCard";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useOrderStore } from "@/stores/orderStore";
+import {
+    RefreshCw,
+    Users,
+    ArrowRightLeft,
+    Globe,
+    Clock,
+    AlertCircle,
+    Loader2,
+    Package
+} from "lucide-react";
+import type { OrderBuffer } from "@/stores/orderStore";
+import {isExternal} from "node:util/types";
 
-// Моковые данные для разных заказов
-const mockBufferOrders = [
-    // Переданные из другой команды
-    {
-        id: "EC0801001",
-        transferredFrom: "Egor Biriukov",
-        team: "C",
-        timeAgo: "0 min ago",
-        clientName: "adead",
-        clientId: "c34669",
-        address: "Address not specified",
-        date: "01.08.2025",
-        time: "11:52",
-        amount: 0,
-        type: "external" as const
-    },
-    {
-        id: "TV0801245",
-        transferredFrom: "Sarah Johnson",
-        team: "A",
-        timeAgo: "5 min ago",
-        clientName: "John Smith",
-        clientId: "c41256",
-        address: "123 Main St, Los Angeles, CA 90210",
-        date: "01.08.2025",
-        time: "11:47",
-        amount: 285,
-        type: "external" as const
-    },
-    {
-        id: "MT0801156",
-        transferredFrom: "Mike Rodriguez",
-        team: "B",
-        timeAgo: "12 min ago",
-        clientName: "Emily Davis",
-        clientId: "c38944",
-        address: "456 Oak Avenue, Miami, FL 33101",
-        date: "01.08.2025",
-        time: "11:40",
-        amount: 450,
-        type: "external" as const
-    },
-    // Переданные внутри команды
-    {
-        id: "SV0801089",
-        transferredFrom: "Alex Chen",
-        team: "current",
-        timeAgo: "18 min ago",
-        clientName: "Robert Wilson",
-        clientId: "c42301",
-        address: "789 Pine Road, New York, NY 10001",
-        date: "01.08.2025",
-        time: "11:34",
-        amount: 150,
-        type: "internal" as const
-    },
-    {
-        id: "LG0801378",
-        transferredFrom: "Jessica Brown",
-        team: "current",
-        timeAgo: "25 min ago",
-        clientName: "Maria Garcia",
-        clientId: "c35677",
-        address: "321 Elm Street, Las Vegas, NV 89101",
-        date: "01.08.2025",
-        time: "11:27",
-        amount: 620,
-        type: "internal" as const
-    },
-    {
-        id: "HD0801432",
-        transferredFrom: "David Lee",
-        team: "current",
-        timeAgo: "32 min ago",
-        clientName: "James Thompson",
-        clientId: "c40188",
-        address: "654 Maple Drive, Atlanta, GA 30301",
-        date: "01.08.2025",
-        time: "11:20",
-        amount: 95,
-        type: "internal" as const
-    },
-    // Ожидающие обработки
-    {
-        id: "XL0801567",
-        transferredFrom: "System",
-        team: "pending",
-        timeAgo: "45 min ago",
-        clientName: "Lisa Anderson",
-        clientId: "c37499",
-        address: "987 Cedar Lane, Phoenix, AZ 85001",
-        date: "01.08.2025",
-        time: "11:07",
-        amount: 375,
-        type: "pending" as const
-    },
-    {
-        id: "FB0801234",
-        transferredFrom: "Auto Assignment",
-        team: "pending",
-        timeAgo: "1 hour ago",
-        clientName: "Kevin Miller",
-        clientId: "c43612",
-        address: "147 Birch Court, Seattle, WA 98101",
-        date: "01.08.2025",
-        time: "10:52",
-        amount: 220,
-        type: "pending" as const
-    },
-    {
-        id: "ST0801445",
-        transferredFrom: "Queue System",
-        team: "pending",
-        timeAgo: "1.5 hours ago",
-        clientName: "Amanda Taylor",
-        clientId: "c36754",
-        address: "258 Spruce Street, Denver, CO 80201",
-        date: "01.08.2025",
-        time: "10:22",
-        amount: 510,
-        type: "pending" as const
-    },
-    {
-        id: "WL0801678",
-        transferredFrom: "System Auto",
-        team: "pending",
-        timeAgo: "2 hours ago",
-        clientName: "Daniel White",
-        clientId: "c41987",
-        address: "369 Walnut Avenue, Boston, MA 02101",
-        date: "01.08.2025",
-        time: "09:52",
-        amount: 185,
-        type: "pending" as const
-    }
-];
+// Типы для фильтрации
+type FilterType = 'all' | 'external' | 'internal';
+
+// Интерфейс для данных карточки (адаптация OrderBuffer к props BufferCard)
+interface BufferCardData {
+    id: string;
+    transferredFrom: string;
+    team: string;
+    timeAgo: string;
+    clientId: string;
+    address: string;
+    date: string;
+    time: string;
+    amount: number;
+    type: 'external' | 'internal';
+}
 
 export default function BufferedOrders() {
-    const [selectedType, setSelectedType] = useState<'all' | 'external' | 'internal' | 'pending'>('all');
+    const {
+        currentUser,
+        fetchBufferOrders,
+        allBufferOrders,
+        internalOrders,
+        externalOrders,
+        bufferStats,
+        isLoadingBuffer,
+        bufferError,
+        claimBufferOrder,
+        refreshBuffer
+    } = useOrderStore();
 
-    const filteredOrders = selectedType === 'all'
-        ? mockBufferOrders
-        : mockBufferOrders.filter(order => order.type === selectedType);
+    const [selectedType, setSelectedType] = useState<FilterType>('all');
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const handleClaim = (orderId: string) => {
+    // Загружаем данные при монтировании компонента
+    useEffect(() => {
+        if (currentUser?.team) {
+            fetchBufferOrders();
+        }
+    }, [currentUser?.team, fetchBufferOrders]);
+
+    // Функция для вычисления времени назад
+    const getTimeAgo = (dateString: string): string => {
+        const now = new Date();
+        const transferDate = new Date(dateString);
+        const diffMs = now.getTime() - transferDate.getTime();
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
+    };
+
+    // Функция для конвертации OrderBuffer в формат для BufferCard
+    const convertOrderBufferToCardData = (order: OrderBuffer): BufferCardData => {
+        const isExternal = order.data.transferred_from.team !== currentUser?.team;
+        console.log()
+        return {
+            amount: order.data.total,
+            id: order.order_id,
+            transferredFrom: order.data.transferred_from.user_name,
+            team: order.data.transferred_from.team,
+            timeAgo: getTimeAgo(order.data.transferred_at),
+            clientId: order.order_id,
+            address: "Address not available", // Адрес не доступен в данных буфера
+            date: new Date(order.data.transferred_at).toLocaleDateString(),
+            time: new Date(order.data.transferred_at).toLocaleTimeString(),
+            type: isExternal ? 'external' : 'internal'
+        };
+    };
+
+    // Получаем отфильтрованные заказы
+    const getFilteredOrders = (): BufferCardData[] => {
+        let orders: OrderBuffer[] = [];
+
+        switch (selectedType) {
+            case 'external':
+                orders = externalOrders;
+                break;
+            case 'internal':
+                orders = internalOrders;
+                break;
+            case 'all':
+            default:
+                orders = allBufferOrders;
+                break;
+        }
+
+        return orders.map(convertOrderBufferToCardData);
+    };
+
+    const filteredOrders = getFilteredOrders();
+
+    // Обработчик для claim заказа
+    const handleClaim = async (orderId: string) => {
         console.log(`Claiming order: ${orderId}`);
-        // Здесь будет логика для claim заказа
-    };
-
-    const typeCounts = {
-        external: mockBufferOrders.filter(order => order.type === 'external').length,
-        internal: mockBufferOrders.filter(order => order.type === 'internal').length,
-        pending: mockBufferOrders.filter(order => order.type === 'pending').length,
-    };
-
-    const getTypeLabel = (type: string) => {
-        switch (type) {
-            case 'external': return 'From Other Teams';
-            case 'internal': return 'Internal Transfers';
-            case 'pending': return 'Pending Orders';
-            default: return 'All Orders';
+        const success = await claimBufferOrder(orderId);
+        if (success) {
+            // Обновляем буфер после успешного claim
+            await refreshBuffer();
         }
     };
 
-    const getTypeIcon = (type: string) => {
-        switch (type) {
-            case 'external': return '🌍';
-            case 'internal': return '🔁';
-            case 'pending': return '🕒';
-            default: return '📋';
+    // Обработчик обновления
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await refreshBuffer();
+        } finally {
+            setIsRefreshing(false);
         }
     };
 
-    const getTypeColor = (type: string) => {
-        switch (type) {
-            case 'external': return 'bg-indigo-500 hover:bg-indigo-600';
-            case 'internal': return 'bg-yellow-500 hover:bg-yellow-600';
-            case 'pending': return 'bg-green-500 hover:bg-green-600';
-            default: return 'bg-orange-500 hover:bg-orange-600';
-        }
-    };
+    // Если нет пользователя
+    if (!currentUser) {
+        return (
+            <div className="p-6">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                            Authentication Required
+                        </h3>
+                        <p className="text-gray-500">
+                            Please log in to view buffer orders
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Если ошибка загрузки
+    if (bufferError) {
+        return (
+            <div className="p-6">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                            Error Loading Buffer
+                        </h3>
+                        <p className="text-gray-500 mb-4">{bufferError}</p>
+                        <button
+                            onClick={handleRefresh}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 mx-auto"
+                            disabled={isRefreshing}
+                        >
+                            {isRefreshing ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <RefreshCw className="w-4 h-4" />
+                            )}
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6">
             {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">Buffer Orders</h1>
-                <p className="text-gray-600 mb-4">Orders categorized by transfer type and processing status</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                            <Package className="w-6 h-6" />
+                            Buffer Orders
+                        </h1>
+                        <p className="text-gray-600 mb-4">
+                            Orders categorized by transfer type and team - Team {currentUser.team}
+                        </p>
+                    </div>
+
+                    {/* Refresh Button */}
+                    <button
+                        onClick={handleRefresh}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                        disabled={isRefreshing || isLoadingBuffer}
+                    >
+                        {isRefreshing || isLoadingBuffer ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <RefreshCw className="w-4 h-4" />
+                        )}
+                        Refresh
+                    </button>
+                </div>
 
                 {/* Stats */}
                 <div className="bg-orange-100 px-4 py-2 rounded-lg inline-block">
                     <span className="text-orange-800 font-semibold">
-                        {filteredOrders.length} {getTypeLabel(selectedType).toLowerCase()}
+                        {filteredOrders.length} {selectedType === 'all' ? 'total' : selectedType} orders
                     </span>
+                    {bufferStats.lastUpdated && (
+                        <span className="text-orange-600 text-sm ml-2">
+                            • Updated {getTimeAgo(bufferStats.lastUpdated)}
+                        </span>
+                    )}
                 </div>
             </div>
 
-            {/* Filter buttons */}
-            <div className="mb-6 flex flex-wrap gap-3">
-                <button
-                    onClick={() => setSelectedType('all')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
-                        selectedType === 'all'
-                            ? 'bg-orange-600'
-                            : 'bg-gray-400 hover:bg-gray-500'
-                    }`}
-                >
-                    <span>📋</span>
-                    All Orders ({mockBufferOrders.length})
-                </button>
-
-                <button
-                    onClick={() => setSelectedType('external')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
-                        selectedType === 'external'
-                            ? 'bg-indigo-600'
-                            : 'bg-indigo-400 hover:bg-indigo-500'
-                    }`}
-                >
-                    <span>🌍</span>
-                    From Other Teams ({typeCounts.external})
-                </button>
-
-                <button
-                    onClick={() => setSelectedType('internal')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
-                        selectedType === 'internal'
-                            ? 'bg-yellow-600'
-                            : 'bg-yellow-400 hover:bg-yellow-500'
-                    }`}
-                >
-                    <span>🔁</span>
-                    Internal Transfers ({typeCounts.internal})
-                </button>
-
-                <button
-                    onClick={() => setSelectedType('pending')}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
-                        selectedType === 'pending'
-                            ? 'bg-green-600'
-                            : 'bg-green-400 hover:bg-green-500'
-                    }`}
-                >
-                    <span>🕒</span>
-                    Pending Orders ({typeCounts.pending})
-                </button>
-            </div>
-
-            {/* Orders Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-                {filteredOrders.map((order) => (
-                    <BufferCard
-                        key={order.id}
-                        id={order.id}
-                        transferredFrom={order.transferredFrom}
-                        team={order.team}
-                        timeAgo={order.timeAgo}
-                        clientName={order.clientName}
-                        clientId={order.clientId}
-                        address={order.address}
-                        date={order.date}
-                        time={order.time}
-                        amount={order.amount}
-                        type={order.type}
-                        onClaim={() => handleClaim(order.id)}
-                    />
-                ))}
-            </div>
-
-            {/* Empty state */}
-            {filteredOrders.length === 0 && (
-                <div className="text-center py-12">
-                    <div className="text-6xl mb-4">{getTypeIcon(selectedType)}</div>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                        No {getTypeLabel(selectedType).toLowerCase()}
-                    </h3>
-                    <p className="text-gray-500">
-                        Try selecting a different category or check back later
-                    </p>
+            {/* Loading State */}
+            {isLoadingBuffer && !isRefreshing ? (
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <Loader2 className="w-8 h-8 text-blue-500 mx-auto mb-4 animate-spin" />
+                        <p className="text-gray-600">Loading buffer orders...</p>
+                    </div>
                 </div>
+            ) : (
+                <>
+                    {/* Filter buttons */}
+                    <div className="mb-6 flex flex-wrap gap-3">
+                        <button
+                            onClick={() => setSelectedType('all')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
+                                selectedType === 'all'
+                                    ? 'bg-orange-600'
+                                    : 'bg-gray-400 hover:bg-gray-500'
+                            }`}
+                        >
+                            <Package className="w-4 h-4" />
+                            All Orders ({bufferStats.totalCount})
+                        </button>
+
+                        <button
+                            onClick={() => setSelectedType('external')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
+                                selectedType === 'external'
+                                    ? 'bg-indigo-600'
+                                    : 'bg-indigo-400 hover:bg-indigo-500'
+                            }`}
+                        >
+                            <Globe className="w-4 h-4" />
+                            From Other Teams ({bufferStats.externalCount})
+                        </button>
+
+                        <button
+                            onClick={() => setSelectedType('internal')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition-colors text-white flex items-center gap-2 ${
+                                selectedType === 'internal'
+                                    ? 'bg-yellow-600'
+                                    : 'bg-yellow-400 hover:bg-yellow-500'
+                            }`}
+                        >
+                            <ArrowRightLeft className="w-4 h-4" />
+                            Internal Transfers ({bufferStats.internalCount})
+                        </button>
+                    </div>
+
+                    {/* Orders Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+                        {filteredOrders.map((order) => (
+                            <BufferCard
+                                key={order.id}
+                                id={order.id}
+                                transferredFrom={order.transferredFrom}
+                                team={order.team}
+                                timeAgo={order.timeAgo}
+                                clientId={order.clientId}
+                                address={order.address}
+                                date={order.date}
+                                time={order.time}
+                                amount={order.amount}
+                                type={order.type}
+                                onClaim={() => handleClaim(order.id)}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Empty state */}
+                    {filteredOrders.length === 0 && !isLoadingBuffer && (
+                        <div className="text-center py-12">
+                            <div className="text-center">
+                                {selectedType === 'external' ? (
+                                    <Globe className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                ) : selectedType === 'internal' ? (
+                                    <ArrowRightLeft className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                ) : (
+                                    <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                )}
+                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                                    No {selectedType === 'all' ? '' : selectedType} orders in buffer
+                                </h3>
+                                <p className="text-gray-500">
+                                    {selectedType === 'all'
+                                        ? "Buffer is empty. Orders will appear here when transferred."
+                                        : `No ${selectedType} orders available. Try selecting a different category.`
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

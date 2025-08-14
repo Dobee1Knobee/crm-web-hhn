@@ -1,4 +1,4 @@
-// stores/orderStore.ts - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ С WEBSOCKET
+// stores/orderStore.ts - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ С WEBSOCKET И БУФЕРОМ
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import {
@@ -14,6 +14,7 @@ import { mapOrderToFormPatch } from "@/utils/mapOrderToForm";
 import { mapApiServicesToSelected } from "@/utils/mapApiServicesToSelected";
 import { serviceCatalog } from "@/catalog/serviceCatalog";
 import toast from "react-hot-toast";
+
 // === SOCKET CONFIG ===
 const SOCKET_URL =
     (process.env.NEXT_PUBLIC_SOCKET_URL?.trim() || 'https://bot-crm-backend-756832582185.us-central1.run.app')
@@ -21,7 +22,7 @@ const SOCKET_URL =
 
 // Жёсткая проверка, чтобы не получить "http://http/..."
 if (!/^https?:\/\//i.test(SOCKET_URL)) {
-    console.error('❌ Некорректный NEXT_PUBLIC_SOCKET_URL:', SOCKET_URL);
+    console.error('⚠ Некорректный NEXT_PUBLIC_SOCKET_URL:', SOCKET_URL);
 }
 
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
@@ -62,26 +63,64 @@ interface FetchOrdersResponse {
     pagination: PaginationInfo;
 }
 
-// ===== КОМАНДНЫЙ БУФЕР =====
+// ===== ИНТЕРФЕЙСЫ БУФЕРА =====
+interface TransferredFrom {
+    user_name: string;
+    user_at: string;
+    team: string;
+    date: string;
+}
+
+interface OrderData {
+    transferred_from: TransferredFrom;
+    order_id: string;
+    transfer_status: string;
+    transferred_to_team: string;
+    transfer_note: string;
+    transferred_at: string;
+    total:number;
+}
+
+export interface OrderBuffer {
+    data: OrderData;
+    _id: string;
+    order_id: string;
+    document_id: string;
+    status: string;
+    created_at: string;
+    createdAt: string;
+    updatedAt: string;
+    total: number;
+    __v: number;
+}
+
+interface UserInfo {
+    userId: string;
+    userName: string;
+    userAt: string;
+}
+
+interface ClaimedBy extends UserInfo {
+    claimedAt: string;
+}
+
 interface TeamBufferOrder {
-    id: string;
-    formData: FormData;
-    services: ServiceItem[];
+    success: boolean;
+    my_team: string;
+    orders: OrderBuffer[];
     savedAt: string;
     total: number;
-    savedBy: {
-        userId: string;
-        userName: string;
-        userAt: string;
-    };
+    savedBy: UserInfo;
     team: string;
     status: 'available' | 'claimed';
-    claimedBy?: {
-        userId: string;
-        userName: string;
-        userAt: string;
-        claimedAt: string;
-    };
+    claimedBy?: ClaimedBy;
+}
+
+interface CurrentOrderBufferResponse {
+    success: boolean;
+    my_team: string;
+    orders: OrderBuffer[];
+    count: number;
 }
 
 // ===== TELEGRAM ЗАКАЗЫ =====
@@ -101,15 +140,34 @@ interface TelegramOrder {
     status: 'accepted' | 'in_progress' | 'completed';
 }
 
+// ===== СОСТОЯНИЕ БУФЕРА =====
+interface BufferState {
+    // Разделенные заказы
+    internalOrders: OrderBuffer[];    // Заказы от нашей команды
+    externalOrders: OrderBuffer[];    // Заказы от других команд
+    allBufferOrders: OrderBuffer[];   // Все заказы из буфера
+
+    // Статистика
+    bufferStats: {
+        totalCount: number;
+        internalCount: number;
+        externalCount: number;
+        lastUpdated: string | null;
+    };
+
+    // Состояние загрузки буфера
+    isLoadingBuffer: boolean;
+    bufferError: string | null;
+}
+
 // ===== ИНТЕРФЕЙС STORE =====
-export interface OrderState {
+export interface OrderState extends BufferState {
     // ===== ДАННЫЕ =====
     currentOrder: Order | null;
     formData: FormData;
     selectedServices: ServiceItem[];
     orders: Order[];
     teamBufferOrders: TeamBufferOrder[];
-    telegramOrders: TelegramOrder[];
     myOrders: Order[];
     currentLeadID?: string;
 
@@ -173,18 +231,24 @@ export interface OrderState {
     removeSubService: (mainServiceId: number, subServiceId: number) => void;
     getTotalPrice: () => number;
 
-    // ===== БУФЕРЫ =====
-    saveToTeamBuffer: () => Promise<void>;
-    fetchTeamBuffer: (team?: string) => Promise<void>;
+    // ===== 🆕 НОВЫЕ МЕТОДЫ ДЛЯ БУФЕРА =====
+    fetchBufferOrders: () => Promise<void>;
+    claimBufferOrder: (orderId: string) => Promise<boolean>;
+    transferOrderToBuffer: (orderId: string, targetTeam: string | undefined, note?: string | undefined) => Promise<boolean>;
+    refreshBuffer: () => Promise<void>;
+    clearBuffer: () => void;
+    takeOrderBackFromBuffer: (orderId: string, team: string | undefined) => Promise<boolean>;  // 🆕 НОВЫЙ МЕТОД
+    takeOrderFromBuffer: (orderId: string) => Promise<boolean>;      // 🆕 НОВЫЙ МЕТОД
 
-    // ===== TELEGRAM =====
-    fetchTelegramOrders: () => Promise<void>;
-    startWorkingOnTelegramOrder: (telegramOrderId: string) => Promise<void>;
-    createOrderFromTelegram: () => Promise<Order | null>;
-    cancelTelegramOrder: () => void;
+    // Геттеры для удобства
+    getInternalBufferOrders: () => OrderBuffer[];
+    getExternalBufferOrders: () => OrderBuffer[];
+    getBufferOrderById: (orderId: string) => OrderBuffer | null;
+
+    // Фильтрация
+    filterBufferOrders: (filter: 'all' | 'internal' | 'external') => OrderBuffer[];
 
     // ===== ЗАКАЗЫ =====
-    //TODO: поправить создание заказа
     createOrder: (userOwner?: string) => Promise<Order | null>;
     fetchOrders: (paginationParams?: PaginationParams, query?: OrderSearchQuery) => Promise<FetchOrdersResponse | void>;
     fetchMyOrders: (owner: string) => Promise<void>;
@@ -281,6 +345,19 @@ export const useOrderStore = create<OrderState>()(
             isSocketConnected: false,
             notifications: [],
 
+            // ===== 🆕 БУФЕР НАЧАЛЬНЫЕ ЗНАЧЕНИЯ =====
+            internalOrders: [],
+            externalOrders: [],
+            allBufferOrders: [],
+            bufferStats: {
+                totalCount: 0,
+                internalCount: 0,
+                externalCount: 0,
+                lastUpdated: null
+            },
+            isLoadingBuffer: false,
+            bufferError: null,
+
             // ===== ПОИСК =====
             searchResults: null,
             isSearching: false,
@@ -292,7 +369,7 @@ export const useOrderStore = create<OrderState>()(
 
                 // Проверяем, есть ли пользователь
                 if (!currentUser || !currentUser.team || !currentUser.userName) {
-                    console.log('❌ Нет данных пользователя для WebSocket');
+                    console.log('⚠ Нет данных пользователя для WebSocket');
                     return;
                 }
 
@@ -310,13 +387,12 @@ export const useOrderStore = create<OrderState>()(
                 console.log(`🔌 Подключаемся как ${currentUser.userName} к команде ${currentUser.team}`);
 
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const io = require('socket.io-client');
                 console.log('🔗 SOCKET_URL =', SOCKET_URL);
 
                 const socket = io(SOCKET_URL, {
-                    transports: ['websocket'],   // убираем xhr-поллинг → не будет кривых http://http/... URL
-                    path: '/socket.io',          // стандартный путь (совпадает с сервером)
+                    transports: ['websocket'],
+                    path: '/socket.io',
                     reconnection: true,
                     reconnectionAttempts: 10,
                     reconnectionDelay: 1000,
@@ -338,8 +414,7 @@ export const useOrderStore = create<OrderState>()(
                 });
 
                 socket.on('new-order-in-buffer', (data: any) => {
-                    toast.custom('🔔 НОВЫЙ ЗАКАЗ В БУФЕРЕ!', data);
-
+                    toast.success('🔔 НОВЫЙ ЗАКАЗ В БУФЕРЕ!');
                     const notification = {
                         id: Date.now(),
                         type: 'new-order',
@@ -364,11 +439,12 @@ export const useOrderStore = create<OrderState>()(
                         });
                     }
 
-                    // Alert для тестирования
+                    // Автоматически обновляем буфер
+                    get().refreshBuffer();
                 });
 
                 socket.on('disconnect', () => {
-                    console.log('❌ WebSocket отключен');
+                    console.log('⚠ WebSocket отключен');
                     set({ isSocketConnected: false });
                 });
 
@@ -411,6 +487,277 @@ export const useOrderStore = create<OrderState>()(
                 return notifications.filter(n => !n.read).length;
             },
 
+            // ===== 🆕 МЕТОДЫ БУФЕРА =====
+            fetchBufferOrders: async () => {
+                const { currentUser } = get();
+
+                if (!currentUser?.team) {
+                    set({ bufferError: 'Команда пользователя не определена' });
+                    return;
+                }
+
+                set({ isLoadingBuffer: true, bufferError: null });
+
+                try {
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/show-orders-otherteam/buffer/${currentUser.userAt}`,
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`Ошибка загрузки буфера: ${response.statusText}`);
+                    }
+
+                    const data: CurrentOrderBufferResponse = await response.json();
+
+                    if (!data.success) {
+                        throw new Error('Сервер вернул ошибку');
+                    }
+
+                    const allOrders = data.orders || [];
+                    const currentTeam = currentUser.team;
+
+                    // Разделяем заказы на внутренние и внешние
+                    const internalOrders = allOrders.filter(order =>
+                        order.data.transferred_from.team === currentTeam
+                    );
+
+                    const externalOrders = allOrders.filter(order =>
+                        order.data.transferred_from.team !== currentTeam
+                    );
+
+                    // Обновляем статистику
+                    const bufferStats = {
+                        totalCount: allOrders.length,
+                        internalCount: internalOrders.length,
+                        externalCount: externalOrders.length,
+                        lastUpdated: new Date().toISOString()
+                    };
+
+                    set({
+                        allBufferOrders: allOrders,
+                        internalOrders,
+                        externalOrders,
+                        bufferStats,
+                        isLoadingBuffer: false,
+                        bufferError: null
+                    });
+
+                    console.log(`📊 Буфер обновлен: ${bufferStats.totalCount} заказов (${bufferStats.internalCount} внутренних, ${bufferStats.externalCount} внешних)`);
+
+                } catch (error) {
+                    console.error('Ошибка загрузки буфера:', error);
+                    set({
+                        bufferError: error instanceof Error ? error.message : 'Неизвестная ошибка',
+                        isLoadingBuffer: false
+                    });
+                }
+            },
+
+            claimBufferOrder: async (orderId: string) => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return false;
+                }
+
+                try {
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/takeOrderFromBuffer/${orderId}/${currentUser.userAt}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error('Не удалось забрать заказ');
+                    }
+
+                    // Обновляем буфер после успешного клейма
+                    await get().refreshBuffer();
+                    toast.success('Заказ успешно забран!');
+                    return true;
+
+                } catch (error) {
+                    console.error('Ошибка при заборе заказа:', error);
+                    toast.error('Не удалось забрать заказ');
+                    return false;
+                }
+            },
+
+            transferOrderToBuffer: async (orderId: string, targetTeam: string | undefined, note = '') => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return false;
+                }
+
+                try {
+                    // ✅ Исправлен URL с правильными query параметрами
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/transfer-order/?leadId=${orderId}&toTeam=${targetTeam}&at=${currentUser.userAt}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                transfer_note: note // ✅ Исправлено название поля
+                            })
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось перевести заказ в буфер');
+                    }
+
+                    const result = await response.json();
+                    return true;
+
+                } catch (error) {
+                    console.error('Ошибка перевода в буфер:', error);
+                    toast.error(error instanceof Error ? error.message : 'Не удалось перевести заказ');
+                    return false;
+                }
+            },
+
+            // 🆕 НОВЫЙ МЕТОД: Возврат заказа из буфера
+            takeOrderBackFromBuffer: async (orderId: string,team?:string) => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return false;
+                }
+
+                try {
+                    console.log(`🔄 Возвращаем заказ ${orderId} пользователем ${currentUser.userAt}`);
+
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/take-order-back/?leadId=${orderId}&at=${currentUser.userAt}&team=${team}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ team })
+                        }
+                    );
+
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось вернуть заказ');
+                    }
+
+                    const result = await response.json();
+
+                    // Обновляем буфер и заказы после успешного возврата
+                    await get().refreshBuffer();
+                    await get().fetchOrders(); // Обновляем список основных заказов
+
+                    console.log('✅ Заказ успешно возвращен:', result);
+
+                    return true;
+
+                } catch (error) {
+                    console.error('❌ Ошибка при возврате заказа:', error);
+                    toast.error(error instanceof Error ? error.message : 'Не удалось вернуть заказ');
+                    return false;
+                }
+            },
+
+            // 🆕 НОВЫЙ МЕТОД: Забор заказа из буфера с новым leadId
+            takeOrderFromBuffer: async (orderId: string) => {
+                const { currentUser } = get();
+
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return false;
+                }
+
+                try {
+                    console.log(`📦 Забираем заказ ${orderId} пользователем ${currentUser.userAt}`);
+
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/takeOrderFromBuffer/${orderId}/${currentUser.userAt}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось забрать заказ из буфера');
+                    }
+
+                    const result = await response.json();
+
+                    // Обновляем буфер и заказы после успешного забора
+                    await get().refreshBuffer();
+                    await get().fetchOrders(); // Обновляем список основных заказов
+
+                    toast.success(`Заказ успешно забран! Новый leadId: ${result.data.new_order_id}`);
+                    console.log('✅ Заказ успешно забран из буфера:', result);
+
+                    return true;
+
+                } catch (error) {
+                    console.error('❌ Ошибка при заборе заказа из буфера:', error);
+                    toast.error(error instanceof Error ? error.message : 'Не удалось забрать заказ');
+                    return false;
+                }
+            },
+
+            refreshBuffer: async () => {
+                await get().fetchBufferOrders();
+            },
+
+            clearBuffer: () => {
+                set({
+                    allBufferOrders: [],
+                    internalOrders: [],
+                    externalOrders: [],
+                    bufferStats: {
+                        totalCount: 0,
+                        internalCount: 0,
+                        externalCount: 0,
+                        lastUpdated: null
+                    },
+                    bufferError: null
+                });
+            },
+
+            // ===== ГЕТТЕРЫ ДЛЯ БУФЕРА =====
+            getInternalBufferOrders: () => {
+                return get().internalOrders;
+            },
+
+            getExternalBufferOrders: () => {
+                return get().externalOrders;
+            },
+
+            getBufferOrderById: (orderId: string) => {
+                const { allBufferOrders } = get();
+                return allBufferOrders.find(order =>
+                    order.order_id === orderId || order._id === orderId
+                ) || null;
+            },
+
+            filterBufferOrders: (filter: 'all' | 'internal' | 'external') => {
+                const { allBufferOrders, internalOrders, externalOrders } = get();
+
+                switch (filter) {
+                    case 'internal':
+                        return internalOrders;
+                    case 'external':
+                        return externalOrders;
+                    case 'all':
+                    default:
+                        return allBufferOrders;
+                }
+            },
+
             // ===== ПОЛЬЗОВАТЕЛЬ С АВТОПОДКЛЮЧЕНИЕМ WEBSOCKET =====
             setCurrentUser: (user) => {
                 set({ currentUser: user }, false, 'setCurrentUser');
@@ -419,7 +766,9 @@ export const useOrderStore = create<OrderState>()(
                 // 🆕 АВТОМАТИЧЕСКИ ПОДКЛЮЧАЕМ WEBSOCKET после установки пользователя
                 setTimeout(() => {
                     get().connectSocket();
-                }, 100); // Небольшая задержка для обновления state
+                    // Также загружаем буфер
+                    get().fetchBufferOrders();
+                }, 100);
             },
 
             login: async (at, password) => {
@@ -445,6 +794,7 @@ export const useOrderStore = create<OrderState>()(
                     // 🆕 ПОДКЛЮЧАЕМ WEBSOCKET после успешного логина
                     setTimeout(() => {
                         get().connectSocket();
+                        get().fetchBufferOrders();
                     }, 100);
 
                 } catch (e) {
@@ -463,6 +813,7 @@ export const useOrderStore = create<OrderState>()(
                         // 🆕 АВТОПОДКЛЮЧЕНИЕ WEBSOCKET при инициализации
                         setTimeout(() => {
                             get().connectSocket();
+                            get().fetchBufferOrders();
                         }, 100);
                     } catch {
                         sessionStorage.removeItem('currentUser');
@@ -470,7 +821,7 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
-            // ===== ФОРМА =====
+            // ===== ФОРМЫ =====
             updateFormData: (field, value) => {
                 set(state => ({
                     formData: { ...state.formData, [field]: value }
@@ -674,275 +1025,8 @@ export const useOrderStore = create<OrderState>()(
                 }, 0);
             },
 
-            // ===== КОМАНДНЫЙ БУФЕР =====
-            saveToTeamBuffer: async () => {
-                const { formData, selectedServices, currentUser } = get();
-
-                if (!currentUser) {
-                    set({ error: 'User not authenticated' });
-                    return;
-                }
-
-                set({ isSaving: true, error: null });
-
-                try {
-                    const teamBufferData: Omit<TeamBufferOrder, 'id'> = {
-                        formData,
-                        services: selectedServices,
-                        savedAt: new Date().toISOString(),
-                        total: get().getTotalPrice(),
-                        savedBy: {
-                            userId: currentUser.userId,
-                            userName: currentUser.userName,
-                            userAt: currentUser.userAt
-                        },
-                        team: currentUser.team,
-                        status: 'available'
-                    };
-
-                    const response = await fetch('/api/buffer/team', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(teamBufferData)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to save to team buffer');
-                    }
-
-                    const savedOrder: TeamBufferOrder = await response.json();
-
-                    set(state => ({
-                        teamBufferOrders: [...state.teamBufferOrders, savedOrder],
-                        isSaving: false
-                    }));
-
-                } catch (error) {
-                    console.error('Save to team buffer error:', error);
-                    set({ error: 'Failed to save to team buffer', isSaving: false });
-                }
-            },
-
-            fetchTeamBuffer: async (team) => {
-                const { currentUser } = get();
-                const teamToFetch = team || currentUser?.team;
-
-                if (!teamToFetch) return;
-
-                set({ isLoading: true, error: null });
-
-                try {
-                    const response = await fetch(`/api/buffer/team?team=${teamToFetch}`);
-
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch team buffer');
-                    }
-
-                    const teamBufferOrders: TeamBufferOrder[] = await response.json();
-                    set({ teamBufferOrders, isLoading: false });
-
-                } catch (error) {
-                    console.error('Fetch team buffer error:', error);
-                    set({ error: 'Failed to fetch team buffer', isLoading: false });
-                }
-            },
-
-            // ===== TELEGRAM ЗАКАЗЫ =====
-            fetchTelegramOrders: async () => {
-                const { currentUser } = get();
-
-                if (!currentUser) {
-                    set({ error: 'User not authenticated' });
-                    return;
-                }
-
-                set({ isLoading: true, error: null });
-
-                try {
-                    const response = await fetch(`/api/telegram/orders?userId=${currentUser.userId}&team=${currentUser.team}`);
-
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch Telegram orders');
-                    }
-
-                    const telegramOrders: TelegramOrder[] = await response.json();
-                    set({ telegramOrders, isLoading: false });
-
-                } catch (error) {
-                    console.error('Fetch Telegram orders error:', error);
-                    set({ error: 'Failed to fetch Telegram orders', isLoading: false });
-                }
-            },
-
-            startWorkingOnTelegramOrder: async (telegramOrderId: string) => {
-                const { telegramOrders } = get();
-
-                const telegramOrder = telegramOrders.find(order => order.id === telegramOrderId);
-
-                if (!telegramOrder) {
-                    set({ error: 'Telegram order not found' });
-                    return;
-                }
-
-                set({ isLoading: true, error: null });
-
-                try {
-                    const response = await fetch(`/api/telegram/orders/${telegramOrderId}/start`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to start working on Telegram order');
-                    }
-
-                    const prefilledFormData: FormData = {
-                        customerName: telegramOrder.customerName,
-                        phoneNumber: telegramOrder.phoneNumber,
-                        text_status: telegramOrder.status,
-                        address: '',
-                        zipCode: '',
-                        date: '',
-                        time: '',
-                        city: 'New_York',
-                        masterId: '',
-                        masterName: '',
-                        description: `📝 Сообщение клиента:\n"${telegramOrder.customerMessage}"\n\n📋 Дополнительная информация:`,
-                        teamId: telegramOrder.team
-                    };
-
-                    const updatedTelegramOrders = telegramOrders.map(order =>
-                        order.id === telegramOrderId
-                            ? { ...order, status: 'in_progress' as const }
-                            : order
-                    );
-
-                    set({
-                        formData: prefilledFormData,
-                        selectedServices: [],
-                        currentTelegramOrder: { ...telegramOrder, status: 'in_progress' },
-                        isWorkingOnTelegramOrder: true,
-                        telegramOrders: updatedTelegramOrders,
-                        isLoading: false
-                    });
-
-                } catch (error) {
-                    console.error('Start working on Telegram order error:', error);
-                    set({ error: 'Failed to start working on Telegram order', isLoading: false });
-                }
-            },
-
-            createOrderFromTelegram: async () => {
-                const { currentTelegramOrder, formData, selectedServices, validateForm, currentUser } = get();
-
-                if (!currentTelegramOrder || !currentUser) {
-                    set({ error: 'No Telegram order in progress or user not authenticated' });
-                    return null;
-                }
-
-                const errors = validateForm();
-                if (errors.length > 0) {
-                    set({ error: errors.join(', ') });
-                    return null;
-                }
-
-                set({ isSaving: true, error: null });
-
-                try {
-                    const orderServices: OrderService[] = selectedServices.map(service =>
-                        convertServiceItemToOrderService(service, ['mount'])
-                    );
-
-                    const orderData: CreateOrderData = {
-                        owner: currentUser.userId,
-                        team: formData.teamId,
-                        leadName: formData.customerName,
-                        phone: formData.phoneNumber,
-                        address: formData.address,
-                        zip_code: formData.zipCode,
-                        city: formData.city,
-                        date: formData.date,
-                        time: formData.time,
-                        master: formData.masterName,
-                        manager_id: formData.masterId,
-                        comment: formData.description,
-                        comments: `Заказ из Telegram. Исходное сообщение клиента: "${currentTelegramOrder.customerMessage}"`,
-                        services: orderServices,
-                        total: get().getTotalPrice(),
-                        transfer_status: TransferStatus.ACTIVE,
-                        canceled: false,
-                        miles: [],
-                        response_time: [],
-                        visits: [],
-                        transfer_history: [],
-                        changes: []
-                    };
-
-                    const response = await fetch('/api/orders', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(orderData)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to create order');
-                    }
-
-                    const createdOrder: Order = await response.json();
-
-                    await fetch(`/api/telegram/orders/${currentTelegramOrder.id}/complete`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ orderId: createdOrder._id })
-                    });
-
-                    set(state => ({
-                        currentOrder: createdOrder,
-                        myOrders: [...state.myOrders, createdOrder],
-                        currentTelegramOrder: null,
-                        isWorkingOnTelegramOrder: false,
-                        telegramOrders: state.telegramOrders.map(order =>
-                            order.id === currentTelegramOrder.id
-                                ? { ...order, status: 'completed' as const }
-                                : order
-                        ),
-                        isSaving: false
-                    }));
-
-                    get().resetForm();
-                    return createdOrder;
-
-                } catch (error) {
-                    console.error('Create order from Telegram error:', error);
-                    set({ error: 'Failed to create order from Telegram', isSaving: false });
-                    return null;
-                }
-            },
-
-            cancelTelegramOrder: () => {
-                const { currentTelegramOrder } = get();
-
-                if (!currentTelegramOrder) return;
-
-                set(state => ({
-                    currentTelegramOrder: null,
-                    isWorkingOnTelegramOrder: false,
-                    telegramOrders: state.telegramOrders.map(order =>
-                        order.id === currentTelegramOrder.id
-                            ? { ...order, status: 'accepted' as const }
-                            : order
-                    )
-                }));
-
-                get().resetForm();
-            },
-
             // ===== СОЗДАНИЕ ЗАКАЗА =====
             createOrder: async (userOwner ) => {
-                if (get().isWorkingOnTelegramOrder) {
-                    return get().createOrderFromTelegram();
-                }
-
                 const { formData, selectedServices, validateForm } = get();
 
                 const errors = validateForm();
@@ -995,7 +1079,8 @@ export const useOrderStore = create<OrderState>()(
                     }
 
                     const createdOrder: Order = await response.json();
-                    toast.success('Successfully created order');
+
+                    toast.success(`Successfully created order ${createdOrder.leadId}`);
                     set(state => ({
                         currentOrder: createdOrder,
                         myOrders: [...state.myOrders, createdOrder],
@@ -1314,15 +1399,22 @@ export const useOrderStore = create<OrderState>()(
                     }
 
                     const data = await response.json();
+                    console.log('🔍 [DEBUG] Full API response:', data);
 
-                    if (data.success && Array.isArray(data.orders)) {
+                    // ✅ ИСПРАВЛЕНО: Проверяем правильные поля
+                    if (data.duplicates && Array.isArray(data.orders)) {
+                        console.log('✅ [DEBUG] Found duplicates:', data.orders);
+                        return data.orders;
+                    } else if (Array.isArray(data.orders)) {
+                        // На случай если duplicates = false, но массив есть
+                        console.log('ℹ️ [DEBUG] No duplicates flag, but orders array exists:', data.orders);
                         return data.orders;
                     } else {
-                        console.warn('Unexpected API response format:', data);
+                        console.warn('⚠️ [DEBUG] Unexpected API response format:', data);
                         return [];
                     }
                 } catch (e) {
-                    console.error('Ошибка при поиске дублей заказов:', e);
+                    console.error('⚠ [DEBUG] Ошибка при поиске дублей заказов:', e);
                     return [];
                 }
             },
@@ -1482,7 +1574,6 @@ export const useOrderStore = create<OrderState>()(
                     selectedServices: [],
                     orders: [],
                     teamBufferOrders: [],
-                    telegramOrders: [],
                     myOrders: [],
                     currentTelegramOrder: null,
                     isWorkingOnTelegramOrder: false,
@@ -1496,7 +1587,19 @@ export const useOrderStore = create<OrderState>()(
                     isSocketConnected: false,
                     notifications: [],
                     searchResults: null,
-                    isSearching: false
+                    isSearching: false,
+                    // 🆕 Сбрасываем буфер
+                    internalOrders: [],
+                    externalOrders: [],
+                    allBufferOrders: [],
+                    bufferStats: {
+                        totalCount: 0,
+                        internalCount: 0,
+                        externalCount: 0,
+                        lastUpdated: null
+                    },
+                    isLoadingBuffer: false,
+                    bufferError: null
                 });
             }
         })),

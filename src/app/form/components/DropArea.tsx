@@ -373,8 +373,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
         isSaving,
         error,
         createOrder,
-        createOrderFromTelegram,
-        saveToTeamBuffer,
+        transferOrderToBuffer,
         validateForm,
         getTotalPrice,
     } = useOrderStore();
@@ -592,17 +591,12 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             )}
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="mt-4 grid grid-cols-12 gap-3">
                             <button
                                 onClick={async () => {
-                                    const ok = isWorkingOnTelegramOrder
-                                        ? await useOrderStore.getState().createOrderFromTelegram()
-                                        : await useOrderStore.getState().createOrder(currentUser?.userAt);
-                                    if (!ok) {
-                                        const errs = useOrderStore.getState().validateForm();
-                                    }
+                                    await useOrderStore.getState().createOrder(currentUser?.userAt);
                                 }}
-                                className={`py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${
+                                className={`col-span-12 py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${
                                     isSaving
                                         ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300"
                                         : "bg-white text-black border-gray-300 hover:shadow-md hover:bg-gray-50"
@@ -614,40 +608,17 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                 ) : (
                                     <Save className="w-4 h-4" />
                                 )}
-                                {isWorkingOnTelegramOrder ? "Complete Telegram Order" : "Save Order"}
-                            </button>
-
-                            <button
-                                onClick={async () => {
-                                    await useOrderStore.getState().saveToTeamBuffer();
-                                }}
-                                className={`py-3 rounded-2xl shadow transition flex items-center justify-center gap-2 ${
-                                    isSaving || isWorkingOnTelegramOrder
-                                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                        : "bg-orange-400 text-white hover:bg-orange-500"
-                                }`}
-                                disabled={isSaving || isWorkingOnTelegramOrder}
-                                title={isWorkingOnTelegramOrder ? "Telegram orders are saved directly" : "Send to team buffer"}
-                            >
-                                <Send className="w-4 h-4" />
-                                Send to Buffer
+                                {"Save Order"}
                             </button>
                         </div>
 
                         <div className="mt-3 text-[11px] sm:text-xs opacity-80 flex items-center justify-center gap-2">
-                            {isWorkingOnTelegramOrder ? (
-                                <>
-                                    <Smartphone className="w-3 h-3" />
-                                    Complete this Telegram order to create final order
-                                </>
-                            ) : (
+
                                 <>
                                     <Save className="w-3 h-3" />
                                     Save = Create final order ·
-                                    <Send className="w-3 h-3" />
-                                    Buffer = Share with team
                                 </>
-                            )}
+
                         </div>
                     </div>
                 </div>

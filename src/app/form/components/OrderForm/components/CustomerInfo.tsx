@@ -1,8 +1,8 @@
-// CustomerInfo.tsx - ВЕРСИЯ С ПРОВЕРКОЙ ДУБЛЕЙ
+// CustomerInfo.tsx - CLEAN VERSION WITHOUT DEBUG
 import { useOrderStore } from '@/stores/orderStore';
 import { useState, useEffect, useRef } from 'react';
 import Order from '@/types/formDataType';
-import {useRouter} from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function CustomerInfo() {
     // 🏪 Подключаемся к store
@@ -12,41 +12,48 @@ export default function CustomerInfo() {
         isWorkingOnTelegramOrder,
         currentTelegramOrder,
         checkDoubleOrders,
-        getByLeadID// добавляем функцию проверки дублей
+        getByLeadID
     } = useOrderStore();
+
     const router = useRouter();
+
     // 🔍 Состояния для проверки дублей
     const [duplicateOrders, setDuplicateOrders] = useState<Order[]>([]);
     const [showDuplicates, setShowDuplicates] = useState(false);
     const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
     const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [phoneError, setPhoneError] = useState<string>('');
 
     // Ref для клика вне выпадающего списка
     const duplicatesRef = useRef<HTMLDivElement>(null);
 
-    // 🔍 Функция проверки дублей с debounce
+    // 🔍 Функция проверки дублей
     const handlePhoneCheck = async (phoneNumber: string) => {
-        if (!phoneNumber.trim() || phoneNumber.length < 8) {
+        if (!phoneNumber.trim() || phoneNumber.trim().length < 8) {
             setDuplicateOrders([]);
             setShowDuplicates(false);
             return;
         }
 
         setIsCheckingDuplicates(true);
+        setPhoneError('');
 
         try {
+            if (typeof checkDoubleOrders !== 'function') {
+                throw new Error('checkDoubleOrders is not a function');
+            }
+
             const duplicates = await checkDoubleOrders(phoneNumber.trim());
 
-            if (duplicates && duplicates.length > 0) {
+            if (duplicates && Array.isArray(duplicates) && duplicates.length > 0) {
                 setDuplicateOrders(duplicates);
                 setShowDuplicates(true);
-                console.log(`🔍 Найдено ${duplicates.length} заказов с номером ${phoneNumber}`);
             } else {
                 setDuplicateOrders([]);
                 setShowDuplicates(false);
             }
         } catch (error) {
-            console.error('Ошибка при проверке дублей:', error);
+            console.error('Error checking duplicates:', error);
             setDuplicateOrders([]);
             setShowDuplicates(false);
         } finally {
@@ -54,7 +61,7 @@ export default function CustomerInfo() {
         }
     };
 
-    // 📞 Обработчик изменения телефона с debounce
+    // 📞 Обработчик изменения телефона
     const handlePhoneChange = (value: string) => {
         updateFormData('phoneNumber', value);
 
@@ -63,28 +70,42 @@ export default function CustomerInfo() {
             clearTimeout(checkTimeout);
         }
 
-        // Устанавливаем новый таймер для проверки дублей через 1 секунду
+        // Проверяем длину номера
+        if (value.trim() && value.trim().length < 8) {
+            setPhoneError('Phone number must be at least 8 characters');
+            setDuplicateOrders([]);
+            setShowDuplicates(false);
+            return;
+        } else {
+            setPhoneError('');
+        }
+
+        // Проверяем условие для запуска проверки
+        if (!value.trim() || value.trim().length < 8) {
+            setDuplicateOrders([]);
+            setShowDuplicates(false);
+            return;
+        }
+
+        // Устанавливаем новый таймер для проверки дублей
         const newTimeout = setTimeout(() => {
             handlePhoneCheck(value);
-        }, 1000);
+        }, 500);
 
         setCheckTimeout(newTimeout);
     };
-    const updateOrder = useOrderStore(state => state.getByLeadID);
 
     // 🎯 Выбор дубля из списка
     const handleSelectDuplicate = async (leadId: string) => {
-        console.log(leadId)
-        const order = await updateOrder(leadId);
-
-        if (order) {
-            console.log("Заказ найден:", order);
-            router.push("/changeOrder")
-            // здесь можно положить в state, отобразить в форме и т.п.
-        } else {
-            console.warn("Заказ не найден");
+        try {
+            const order = await getByLeadID(leadId);
+            if (order) {
+                router.push("/changeOrder");
+            }
+        } catch (error) {
+            console.error('Error loading order:', error);
         }
-    }
+    };
 
     // 🚫 Закрытие списка при клике вне
     useEffect(() => {
@@ -133,10 +154,11 @@ export default function CustomerInfo() {
                 <div className="relative" ref={duplicatesRef}>
                     <input
                         type="text"
-                        placeholder="Phone number"
+                        placeholder="Phone number (min 8 characters)"
                         value={formData.phoneNumber}
                         onChange={(e) => handlePhoneChange(e.target.value)}
                         name="phone_fake"
+                        maxLength={20}
                         autoComplete="off"
                         className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none transition focus:ring duration-300 ease-in-out focus:ring-blue-400 ${
                             formData.phoneNumber
@@ -147,7 +169,8 @@ export default function CustomerInfo() {
                                 ? 'bg-blue-50 border-blue-200'
                                 : ''
                         } ${
-                            duplicateOrders.length > 0 ? 'border-orange-300 bg-orange-50' : ''
+                            duplicateOrders.length > 0 ? 'border-orange-300 bg-orange-50' :
+                                phoneError ? 'border-red-300 bg-red-50' : ''
                         }`}
                         disabled={isWorkingOnTelegramOrder}
                     />
@@ -162,12 +185,19 @@ export default function CustomerInfo() {
                     {/* ⚠️ Индикатор дублей */}
                     {!isCheckingDuplicates && duplicateOrders.length > 0 && (
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <span className="text-orange-500 text-sm">⚠️</span>
+                            <span className="text-orange-500 text-sm">⚠️ {duplicateOrders.length}</span>
                         </div>
                     )}
 
-                    {/* ✅ Индикатор заполненности (если нет дублей) */}
-                    {!isCheckingDuplicates && formData.phoneNumber && duplicateOrders.length === 0 && (
+                    {/* ❌ Индикатор ошибки */}
+                    {!isCheckingDuplicates && phoneError && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <span className="text-red-500 text-sm">❌</span>
+                        </div>
+                    )}
+
+                    {/* ✅ Индикатор заполненности (если нет дублей и ошибок) */}
+                    {!isCheckingDuplicates && formData.phoneNumber && duplicateOrders.length === 0 && !phoneError && formData.phoneNumber.trim().length >= 8 && (
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                             <span className="text-green-500">✓</span>
                         </div>
@@ -180,6 +210,13 @@ export default function CustomerInfo() {
                         </div>
                     )}
 
+                    {/* ❌ Сообщение об ошибке */}
+                    {phoneError && (
+                        <div className="mt-1 text-xs text-red-500">
+                            {phoneError}
+                        </div>
+                    )}
+
                     {/* 📋 Выпадающий список дублей */}
                     {showDuplicates && duplicateOrders.length > 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-orange-200 rounded-xl shadow-lg max-h-80 overflow-y-auto">
@@ -188,11 +225,11 @@ export default function CustomerInfo() {
                                 <div className="flex items-center gap-2">
                                     <span className="text-orange-600">⚠️</span>
                                     <span className="text-sm font-medium text-orange-800">
-                                        Найдено {duplicateOrders.length} заказов с этим номером
+                                        Found {duplicateOrders.length} orders with this phone number
                                     </span>
                                 </div>
                                 <div className="text-xs text-orange-600 mt-1">
-                                    Нажмите на заказ для автозаполнения
+                                    Click on an order to auto-fill
                                 </div>
                             </div>
 
@@ -211,17 +248,17 @@ export default function CustomerInfo() {
                                                         ID: {order.order_id}
                                                     </span>
                                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                        order.text_status === 'Завершен'
+                                                        order.text_status === 'Completed'
                                                             ? 'bg-green-100 text-green-800'
-                                                            : order.text_status === 'Отменен'
+                                                            : order.text_status === 'Cancelled'
                                                                 ? 'bg-red-100 text-red-800'
                                                                 : 'bg-blue-100 text-blue-800'
                                                     }`}>
-                                                        {order.text_status || 'Оформлен'}
+                                                        {order.text_status || 'Active'}
                                                     </span>
                                                 </div>
                                                 <div className="text-sm text-gray-700 mb-1">
-                                                    👤 {order.leadName || 'Без имени'}
+                                                    👤 {order.leadName || 'No name'}
                                                 </div>
                                                 {order.address && (
                                                     <div className="text-xs text-gray-500 truncate">
@@ -255,7 +292,7 @@ export default function CustomerInfo() {
                                     onClick={() => setShowDuplicates(false)}
                                     className="w-full text-sm text-gray-600 hover:text-gray-800 transition-colors"
                                 >
-                                    Закрыть список
+                                    Close list
                                 </button>
                             </div>
                         </div>
@@ -267,6 +304,8 @@ export default function CustomerInfo() {
                     <input
                         type="text"
                         placeholder="Customer Name"
+                        maxLength={30}
+
                         value={formData.customerName}
                         onChange={(e) => updateFormData('customerName', e.target.value)}
                         autoComplete="off"
@@ -302,6 +341,8 @@ export default function CustomerInfo() {
                     <input
                         type="text"
                         placeholder="Address, ZIP code"
+                        maxLength={40}
+
                         value={formData.address}
                         onChange={(e) => updateFormData('address', e.target.value)}
                         autoComplete="off"
@@ -342,7 +383,7 @@ export default function CustomerInfo() {
                     <span>Progress</span>
                     <span>
                         {[
-                            formData.phoneNumber,
+                            formData.phoneNumber && !phoneError,
                             formData.customerName,
                             formData.address
                         ].filter(Boolean).length}/3 completed
@@ -353,7 +394,7 @@ export default function CustomerInfo() {
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                         style={{
                             width: `${([
-                                formData.phoneNumber,
+                                formData.phoneNumber && !phoneError,
                                 formData.customerName,
                                 formData.address
                             ].filter(Boolean).length / 3) * 100}%`

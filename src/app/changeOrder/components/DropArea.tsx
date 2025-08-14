@@ -368,13 +368,11 @@ export const DropArea: React.FC<DropAreaProps> = ({
     const {
         formData,
         currentUser,
-        isWorkingOnTelegramOrder,
         currentTelegramOrder,
         isSaving,
         error,
         createOrder,
-        createOrderFromTelegram,
-        saveToTeamBuffer,
+
         validateForm,
         getTotalPrice,
         currentLeadID
@@ -425,12 +423,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2">
                         <ClipboardList className="w-6 h-6" />
                         Order Builder
-                        {isWorkingOnTelegramOrder && currentTelegramOrder && (
-                            <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full flex items-center gap-1">
-                                <Smartphone className="w-4 h-4" />
-                                Telegram: {currentTelegramOrder.customerName}
-                            </span>
-                        )}
+
                     </h2>
 
                     {error && (
@@ -581,29 +574,20 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             Total: ${total.toFixed(2)}
                         </div>
                         <div className="text-xs sm:text-sm mt-1 opacity-90 flex items-center justify-center gap-1">
-                            {isWorkingOnTelegramOrder ? (
-                                <>
-                                    <Smartphone className="w-4 h-4" />
-                                    Telegram Order: {currentTelegramOrder?.customerName || ""}
-                                </>
-                            ) : (
+
                                 <>
                                     New Order: {formData.customerName || "Unnamed Customer"}
                                 </>
-                            )}
+
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="mt-4 grid grid-cols-12 gap-3">
                             <button
                                 onClick={async () => {
-                                    const ok = isWorkingOnTelegramOrder
-                                        ? await useOrderStore.getState().createOrderFromTelegram()
-                                        : useOrderStore.getState().updateOrder(currentLeadID);
-                                    if (!ok) {
-                                        const errs = useOrderStore.getState().validateForm();
-                                    }
+                                   useOrderStore.getState().updateOrder(currentLeadID);
+
                                 }}
-                                className={`py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${
+                                className={`col-span-12 py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${
                                     isSaving
                                         ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300"
                                         : "bg-white text-black border-gray-300 hover:shadow-md hover:bg-gray-50"
@@ -615,40 +599,21 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                 ) : (
                                     <Save className="w-4 h-4" />
                                 )}
-                                {isWorkingOnTelegramOrder ? "Complete Telegram Order" : "Save Order"}
+                                { `Update order : ${currentLeadID}`}
                             </button>
 
-                            <button
-                                onClick={async () => {
-                                    await useOrderStore.getState().saveToTeamBuffer();
-                                }}
-                                className={`py-3 rounded-2xl shadow transition flex items-center justify-center gap-2 ${
-                                    isSaving || isWorkingOnTelegramOrder
-                                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                        : "bg-orange-400 text-white hover:bg-orange-500"
-                                }`}
-                                disabled={isSaving || isWorkingOnTelegramOrder}
-                                title={isWorkingOnTelegramOrder ? "Telegram orders are saved directly" : "Send to team buffer"}
-                            >
-                                <Send className="w-4 h-4" />
-                                Send to Buffer
-                            </button>
+
                         </div>
 
                         <div className="mt-3 text-[11px] sm:text-xs opacity-80 flex items-center justify-center gap-2">
-                            {isWorkingOnTelegramOrder ? (
-                                <>
-                                    <Smartphone className="w-3 h-3" />
-                                    Complete this Telegram order to create final order
-                                </>
-                            ) : (
+
                                 <>
                                     <Save className="w-3 h-3" />
                                     Save = Create final order ·
                                     <Send className="w-3 h-3" />
                                     Buffer = Share with team
                                 </>
-                            )}
+
                         </div>
                     </div>
                 </div>

@@ -3,96 +3,29 @@ import {useOrderStore} from "@/stores/orderStore";
 import Order from "@/types/formDataType";
 import {useRouter} from "next/navigation";
 import ClientInfoModal from "@/app/myOrders/components/ClientInfoModal";
-import { OrderStatus } from "@/types/api"; // Импортируем общий enum
+import { OrderStatus } from "@/types/api";
+import {
+    Calendar, User, MapPin, Package, Eye, Edit, FileText, ArrowRight, Undo2
+} from 'lucide-react';
+import TransferOrderModal from "@/app/myOrders/components/TransferOrderModal";
+import toast from "react-hot-toast";
 
-// Типы документа из Mongo (без жёстких зависимостей)
+// helpers
 export type MongoDate = string | { $date: string }
 export type MongoId   = string | { $oid: string }
-
-import {
-    Calendar,
-    User,
-    MapPin,
-    Package,
-    DollarSign,
-    Eye,
-    Edit,
-    Clock,
-    CheckCircle,
-    XCircle,
-    AlertCircle,
-    RefreshCw,
-    Search,
-    Plus,
-    FileText
-} from 'lucide-react';
-
-export type OrderDoc = {
-    _id?: MongoId
-    owner?: string
-    order_id: string
-    address?: string
-    client_id?: number | string
-    zip_code?: string
-    team?: string
-    date?: string
-    manager_id?: string
-    miles?: any[]
-    response_time?: any[]
-    text_status?: string
-    visits?: any[]
-    canceled?: boolean
-    transfer_status?: 'active' | 'buffer' | 'transferred' | string
-    transfer_history?: any[]
-    leadName?: string
-    phone?: string
-    city?: string
-    master?: string
-    comment?: string
-    total?: number
-    services?: Array<{
-        label: string
-        diagonal?: string
-        count?: number
-        workType?: string[]
-        price?: number
-        materialPrice?: number
-        addonsPrice?: number
-        addons?: Array<{ label: string; value: string; price?: number; count?: number; _id?: MongoId }>
-        materials?: Array<{ label: string; value: string; price?: number; count?: number; _id?: MongoId }>
-        _id?: MongoId
-    }>
-    original?: any
-    changes?: any[]
-    createdAt?: MongoDate
-    __v?: number
-}
-
-// Утилиты
-function readOid(v?: MongoId) {
-    if (!v) return undefined
-    return typeof v === 'string' ? v : v.$oid
-}
-
+function readOid(v?: MongoId) { if (!v) return undefined; return typeof v === 'string' ? v : v.$oid }
 function readDate(v?: MongoDate): Date | undefined {
-    if (!v) return undefined
-    if (typeof v === 'string') {
-        const s = v.trim()
-        if (!s) return undefined
-        const d = new Date(s)
-        return isNaN(+d) ? undefined : d
-    }
-    const d = new Date(v.$date)
-    return isNaN(+d) ? undefined : d
+    if (!v) return undefined;
+    if (typeof v === 'string') { const d = new Date(v.trim()); return isNaN(+d) ? undefined : d }
+    const d = new Date(v.$date); return isNaN(+d) ? undefined : d
 }
-
 function formatDateTime(d?: Date) {
     if (!d) return ''
-    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-        ' в ' + d.toLocaleTimeString('ru-RU', { hour: 'numeric', minute: '2-digit' })
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        + ' в ' + d.toLocaleTimeString('ru-RU', { hour: 'numeric', minute: '2-digit' })
 }
 
-// УНИФИЦИРОВАННЫЕ ЦВЕТА И ЛЕЙБЛЫ (как в StatusPills)
+// status colors/labels
 const statusColors: Record<OrderStatus, { bg: string; text: string }> = {
     [OrderStatus.CANCELLED]: { bg: '#470909', text: '#ffffff' },
     [OrderStatus.OTHER_REGION]: { bg: '#00e5ff', text: '#000000' },
@@ -107,10 +40,9 @@ const statusColors: Record<OrderStatus, { bg: string; text: string }> = {
     [OrderStatus.CALL_TOMORROW]: { bg: '#e6cff1', text: '#000000' },
     [OrderStatus.ORDER_STATUS]: { bg: '#e0e0e0', text: '#000000' },
 }
-
 const statusLabel: Record<OrderStatus, string> = {
     [OrderStatus.CANCELLED]: 'Отменен',
-    [OrderStatus.OTHER_REGION]: 'Другая область',
+    [OrderStatus.OTHER_REGION]: 'Другой регион',
     [OrderStatus.INVALID]: 'Невалидный',
     [OrderStatus.NO_ANSWER]: 'Нет ответа',
     [OrderStatus.IN_WORK]: 'В работе',
@@ -122,12 +54,9 @@ const statusLabel: Record<OrderStatus, string> = {
     [OrderStatus.CALL_TOMORROW]: 'Перезвон завтра',
     [OrderStatus.ORDER_STATUS]: 'Оформлен',
 }
-
-// Маппинг русских статусов в enum
 const ruToEnum: Record<string, OrderStatus> = {
     'Отменен': OrderStatus.CANCELLED,
-    'Другая область': OrderStatus.OTHER_REGION,
-    'Другой регион': OrderStatus.OTHER_REGION, // альтернативное название
+    'Другой регион': OrderStatus.OTHER_REGION,
     'Невалидный': OrderStatus.INVALID,
     'Нет ответа': OrderStatus.NO_ANSWER,
     'В работе': OrderStatus.IN_WORK,
@@ -147,10 +76,18 @@ export type OrderCardProps = {
     onChangeStatus?: (id: string, st: string) => void
 }
 
-export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus }: OrderCardProps) {
+export default function OrderCardPretty({ order }: OrderCardProps) {
     const [expanded, setExpanded] = useState(false)
     const [statusOpen, setStatusOpen] = useState(false)
+    const [clientModalOpen, setClientModalOpen] = useState(false)
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+
     const changeStatus = useOrderStore(state => state.changeStatus)
+    const updateOrder  = useOrderStore(state => state.getByLeadID);
+    const transferOrderToBuffer = useOrderStore(state => state.transferOrderToBuffer)
+    const takeOrderBackFromBuffer = useOrderStore(state => state.takeOrderBackFromBuffer)
+    const currentUser = useOrderStore(state => state.currentUser)
+    const router = useRouter();
 
     const availableStatuses: OrderStatus[] = [
         OrderStatus.IN_WORK,
@@ -166,92 +103,103 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
         OrderStatus.ORDER_STATUS
     ]
 
+    const currentStatus: OrderStatus = ruToEnum[order.text_status || 'Оформлен'] || OrderStatus.ORDER_STATUS
+    const disabledAll = order.transfer_status === "in_buffer"
+
     const handleChangeStatus = (st: OrderStatus) => {
-        const ru = statusLabel[st];
-        const leadId = order.order_id;
-        changeStatus(ru, leadId);
+        changeStatus(statusLabel[st], order.order_id);
     }
-
-    function currency(n?: number, sym: string = '$') {
-        const v = typeof n === 'number' ? n : 0
-        return sym + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)
-    }
-
-    const updateOrder = useOrderStore(state => state.getByLeadID);
-    const router = useRouter();
 
     const handleUpdateOrder = async (leadId: string) => {
-        console.log(leadId)
-        const order = await updateOrder(leadId);
-
-        if (order) {
-            console.log("Заказ найден:", order);
-            router.push("/changeOrder")
-        } else {
-            console.warn("Заказ не найден");
-        }
+        const found = await updateOrder(leadId);
+        if (found) router.push("/changeOrder")
     }
 
-    const oid = readOid(order._id) || order.order_id
-    const [clientModalOpen, setClientModalOpen] = useState(false)
+    const handleReturnFromBuffer = async () => {
+        const ok = await takeOrderBackFromBuffer(order.order_id,order.transferred_to_team);
+        if (ok) toast.success("Order returned from buffer");
+    }
 
-    // Текущий статус: из order.text_status (RU) → enum
-    const currentStatus: OrderStatus = ruToEnum[order.text_status || 'Оформлен'] || OrderStatus.ORDER_STATUS
+    // перенос (передача) заказа
+    const handleTransfer = async (targetTeam: 'A' | 'B' | 'C' | 'INTERNAL', comment?: string) => {
+        if (targetTeam === 'INTERNAL') {
+            await transferOrderToBuffer(order.order_id, currentUser?.team, comment);
+        } else {
+            await transferOrderToBuffer(order.order_id, targetTeam, comment);
+        }
+        setIsTransferModalOpen(false);
+        toast.success("Order sent to buffer");
+        await useOrderStore.getState().fetchOrders();
 
-    // Резюме услуг
+    }
+
+    // UI helpers
     const mainLabel = order.services?.[0]?.label
     const extras = (order.services?.[0]?.addons?.length || 0) + (order.services?.[0]?.materials?.length || 0)
     const servicesSummary = mainLabel ? `${mainLabel}${extras ? ` +${extras} доп.` : ''}` : '—'
-
-    // Теги услуг/материалов
-    const serviceChips = [
-        ...(order.services?.map(s => s.label) || [])
-    ]
-    const materialChips = [
-        ...(order.services?.flatMap(s => (s.materials || []).map(m => m.label)) || [])
-    ]
-
+    const serviceChips = [...(order.services?.map(s => s.label) || [])]
+    const materialChips = [...(order.services?.flatMap(s => (s.materials || []).map(m => m.label)) || [])]
     const desc = order.comment || ''
     const short = desc.length > 120 && !expanded ? desc.slice(0, 120) + '…' : desc
 
-    // Закрытие дропдауна по клику вне
     React.useEffect(() => {
         function onDoc(e: MouseEvent) {
-            const target = e.target as HTMLElement
-            if (!target.closest?.('[data-status-root]')) setStatusOpen(false)
+            if (!(e.target as HTMLElement).closest?.('[data-status-root]')) setStatusOpen(false)
         }
         if (statusOpen) document.addEventListener('mousedown', onDoc)
         return () => document.removeEventListener('mousedown', onDoc)
     }, [statusOpen])
 
-    // Время для отображения
     const displayDateTime = useMemo(() => {
-        if (order.time && /am|pm/i.test(order.time)) {
-            return `${order.date || ''} ${order.time}`.trim();
-        }
-
-        if (order.date && /am|pm/i.test(order.date)) {
-            return order.date;
-        }
-
-        const d = (order.date && order.date.trim())
-            ? readDate(order.date)
-            : readDate(order.date);
+        if (order.time && /am|pm/i.test(order.time)) return `${order.date || ''} ${order.time}`.trim();
+        if (order.date && /am|pm/i.test(order.date)) return order.date;
+        const d = (order.date && order.date.trim()) ? readDate(order.date) : readDate(order.date);
         return d ? formatDateTime(d) : '';
     }, [order.date, order.time, order.createdAt]);
 
     return (
         <>
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 relative" data-status-root>
-                {/* Заголовок */}
+            <div className={`border rounded-2xl shadow-sm p-4 relative transition-all duration-300 ${
+                disabledAll ? "bg-yellow-50 border-yellow-200" : "bg-white border-gray-200"
+            }`} data-status-root>
+
+                {/* Banner while in buffer */}
+                {disabledAll && (
+                    <div className="mb-4 bg-yellow-100 border border-yellow-300 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="text-yellow-600"><Package size={16} /></div>
+                                <div>
+                                    <div className="text-sm font-medium text-yellow-800">
+                                        In buffer at Team {order.transferred_to_team || 'Unknown'}
+                                    </div>
+                                    <div className="text-xs text-yellow-600">Waiting for acceptance</div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleReturnFromBuffer}
+                                className="flex items-center gap-1 px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+                                title="Return from buffer"
+                            >
+                                <Undo2 size={12} />
+                                Return
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Header & status */}
                 <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-lg font-semibold text-gray-800">ID:{order.order_id}</h3>
-                    {/* Статус как кнопка с дропдауном */}
+                    <h3 className="text-lg font-semibold text-gray-800">ID: {order.order_id}</h3>
+
                     <div className="relative">
                         <button
                             type="button"
-                            onClick={() => setStatusOpen(v => !v)}
-                            className="px-3 py-1 rounded-full text-xs font-semibold shadow-sm border"
+                            onClick={() => !disabledAll && setStatusOpen(v => !v)}
+                            disabled={disabledAll}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm border ${
+                                disabledAll ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                            }`}
                             style={{
                                 backgroundColor: statusColors[currentStatus].bg,
                                 color: statusColors[currentStatus].text,
@@ -259,29 +207,23 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                             }}
                             aria-haspopup="listbox"
                             aria-expanded={statusOpen}
+                            title={disabledAll ? "Заказ в буфере — изменение статуса недоступно" : "Изменить статус"}
                         >
                             {statusLabel[currentStatus]}
                         </button>
-                        {statusOpen && (
+
+                        {statusOpen && !disabledAll && (
                             <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-80 overflow-auto" role="listbox">
                                 {availableStatuses.map((st) => (
                                     <button
                                         key={st}
                                         role="option"
                                         aria-selected={st === currentStatus}
-                                        onClick={() => {
-                                            setStatusOpen(false);
-                                            handleChangeStatus(st);
-                                        }}
+                                        onClick={() => { setStatusOpen(false); handleChangeStatus(st); }}
                                         className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 ${st===currentStatus ? 'bg-gray-50' : ''}`}
                                     >
-                                    <span
-                                        className="inline-block w-3 h-3 rounded-full"
-                                        style={{
-                                            backgroundColor: statusColors[st].bg,
-                                            outline: '1px solid rgba(0,0,0,.06)'
-                                        }}
-                                    />
+                    <span className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: statusColors[st].bg, outline: '1px solid rgba(0,0,0,.06)' }} />
                                         <span className="flex-1">{statusLabel[st]}</span>
                                     </button>
                                 ))}
@@ -290,14 +232,14 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                     </div>
                 </div>
 
-                {/* Клиент */}
+                {/* Client */}
                 <div className="mt-3 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
                         <User size={20} className="text-gray-600" />
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-2">
-                            {order.leadName || 'Без имени'} <span className="text-sm"></span>
+                            {order.leadName || 'Без имени'}
                         </div>
                         <div className="text-sm text-gray-500">
                             Client ID: #{String(order.client_id ?? '').toString().padStart(5, '0')}
@@ -305,7 +247,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                     </div>
                 </div>
 
-                {/* Адрес и дата */}
+                {/* Address & date */}
                 <div className="mt-3 space-y-1 text-sm text-gray-700">
                     <div className="flex items-center gap-2">
                         <MapPin size={14} className="text-gray-600" />
@@ -319,7 +261,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                     )}
                 </div>
 
-                {/* Услуги */}
+                {/* Services */}
                 <div className="mt-4">
                     <div className="font-semibold text-gray-800 flex items-center gap-2">
                         <Package size={16} className="text-gray-800" />
@@ -336,7 +278,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                     </div>
                 </div>
 
-                {/* Описание */}
+                {/* Description */}
                 {(desc && desc.trim()) && (
                     <div className="mt-4">
                         <div className="font-semibold text-gray-800 flex items-center gap-2">
@@ -345,7 +287,7 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                         </div>
                         <div className="mt-1 bg-blue-50 text-gray-800 rounded-xl px-3 py-2 text-sm">
                             {short}
-                            {desc.length > 120 && (
+                            {desc.length > 120 && !disabledAll && (
                                 <button className="ml-2 text-blue-600 underline" onClick={() => setExpanded(v => !v)}>
                                     {expanded ? 'Скрыть' : 'Показать все'}
                                 </button>
@@ -354,34 +296,57 @@ export default function OrderCardPretty({ order, onView, onEdit, onChangeStatus 
                     </div>
                 )}
 
-                {/* Итог */}
+                {/* Total & actions */}
                 <div className="mt-5 flex items-center justify-between">
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <span>{currency(order.total)}</span>
+                        <span>{order.total ? `$${order.total.toFixed(2)}` : '$0.00'}</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <button
-                            title="Просмотр клиента"
-                            onClick={() => setClientModalOpen(true)}
-                            className="hover:opacity-80 transition-opacity"
-                            aria-label="Просмотр информации о клиенте"
+                            title={disabledAll ? "Заказ в буфере — просмотр недоступен" : "Просмотр клиента"}
+                            onClick={() => !disabledAll && setClientModalOpen(true)}
+                            disabled={disabledAll}
+                            className="hover:opacity-80 transition-opacity disabled:opacity-50"
                         >
                             <Eye size={16} className="text-gray-600 hover:text-blue-600" />
                         </button>
 
                         <button
-                            title="Редактировать"
-                            onClick={() => handleUpdateOrder(order.order_id)}
-                            className="hover:opacity-80 transition-opacity"
-                            aria-label="Редактировать"
+                            title={disabledAll ? "Заказ в буфере — редактирование недоступно" : "Редактировать"}
+                            onClick={() => !disabledAll && handleUpdateOrder(order.order_id)}
+                            disabled={disabledAll}
+                            className="hover:opacity-80 transition-opacity disabled:opacity-50"
                         >
                             <Edit size={16} className="text-gray-600 hover:text-green-600" />
                         </button>
+
+                        {/* ВАЖНО: теперь кнопка передачи реально открывает модалку */}
+                        {order.text_status === "Другой регион" && (
+                            <button
+                                title={disabledAll ? "Заказ в буфере — передача недоступна" : "Передать заказ"}
+                                onClick={() => !disabledAll && setIsTransferModalOpen(true)}
+                                disabled={disabledAll}
+                                className="hover:opacity-80 transition-opacity disabled:opacity-50"
+                                aria-label="Transfer Order"
+                            >
+                                <ArrowRight size={20} className="text-gray-600 hover:text-blue-600" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* модалки */}
+            <TransferOrderModal
+                isOpen={isTransferModalOpen}
+                onClose={() => setIsTransferModalOpen(false)}
+                orderId={order.order_id}
+                currentTeam={order.team as 'A' | 'B' | 'C'}
+                onTransfer={handleTransfer}
+            />
+
             <ClientInfoModal
-                isOpen={clientModalOpen}
+                isOpen={clientModalOpen && !disabledAll}
                 onClose={() => setClientModalOpen(false)}
                 clientName={order.leadName}
                 clientPhone={order.phone}

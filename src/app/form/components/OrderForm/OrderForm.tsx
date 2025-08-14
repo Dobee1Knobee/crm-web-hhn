@@ -1,6 +1,6 @@
 "use client"
-import CustomerInfo from "@/app/changeOrder/components/CustomerInfo";
-import DateAndTime from "@/app/changeOrder/components/DateAndTime";
+import CustomerInfo from "@/app/form/components/OrderForm/components/CustomerInfo";
+import DateAndTime from "@/app/form/components/OrderForm/components/DateAndTime";
 import {User} from "@/hooks/useUserByAt";
 import Cities from "@/app/form/components/OrderForm/components/Cities";
 import {useEffect} from "react";
