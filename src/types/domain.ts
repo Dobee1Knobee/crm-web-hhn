@@ -17,6 +17,7 @@ export interface Order {
     total: number;
     master?: string;
     date: string;
+    time?: string;           // Добавляем время
     description?: string;    // comment из API
 
     // Transfer info (если есть)

@@ -114,7 +114,7 @@ export default function BufferedOrders() {
     // Обработчик для claim заказа
     const handleClaim = async (orderId: string) => {
         console.log(`Claiming order: ${orderId}`);
-        const success = await claimBufferOrder(orderId);
+        const success = await claimBufferOrder(orderId,currentUser?.team);
         if (success) {
             // Обновляем буфер после успешного claim
             await refreshBuffer();

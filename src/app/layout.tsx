@@ -2,6 +2,9 @@
 import { Inter } from 'next/font/google';
 import {Toaster} from "react-hot-toast";
 import AuthProvider from "@/app/auth/AuthProvider";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import PerformanceMonitor from "@/components/PerformanceMonitor";
+
 const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -11,97 +14,100 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             className={inter.className}
             suppressHydrationWarning
         >
-        <AuthProvider>
-            {children}
-        </AuthProvider>
-        <Toaster
-            position="top-right"
-            reverseOrder={false}
-            gutter={8}
-            containerClassName=""
-            containerStyle={{
-                top: 20,
-                left: 20,
-                bottom: 20,
-                right: 20,
-            }}
-            toastOptions={{
-                // 🎯 Базовые настройки для всех тостеров
-                duration: 4000,
-                className: '',
-                style: {
-                    background: '#fff',
-                    color: '#374151',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    padding: '12px 16px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    maxWidth: '420px',
-                    wordBreak: 'break-word',
-                },
-
-                // ✅ Успешные операции (зеленый)
-                success: {
-                    duration: 3000,
+        <ErrorBoundary>
+            <AuthProvider>
+                {children}
+            </AuthProvider>
+            <Toaster
+                position="top-right"
+                reverseOrder={false}
+                gutter={8}
+                containerClassName=""
+                containerStyle={{
+                    top: 20,
+                    left: 20,
+                    bottom: 20,
+                    right: 20,
+                }}
+                toastOptions={{
+                    // 🎯 Базовые настройки для всех тостеров
+                    duration: 4000,
+                    className: '',
                     style: {
-                        background: '#10b981', // emerald-500
-                        color: '#ffffff',
-                        border: '1px solid #059669', // emerald-600
-                        fontWeight: '500',
+                        background: '#fff',
+                        color: '#374151',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        padding: '12px 16px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        maxWidth: '420px',
+                        wordBreak: 'break-word',
                     },
-                    iconTheme: {
-                        primary: '#ffffff',
-                        secondary: '#10b981',
-                    },
-                },
 
-                // ❌ Ошибки (красный)
-                error: {
-                    duration: 6000, // Дольше показываем ошибки
-                    style: {
-                        background: '#ef4444', // red-500
-                        color: '#ffffff',
-                        border: '1px solid #dc2626', // red-600
-                        fontWeight: '500',
+                    // ✅ Успешные операции (зеленый)
+                    success: {
+                        duration: 3000,
+                        style: {
+                            background: '#10b981', // emerald-500
+                            color: '#ffffff',
+                            border: '1px solid #059669', // emerald-600
+                            fontWeight: '500',
+                        },
+                        iconTheme: {
+                            primary: '#ffffff',
+                            secondary: '#10b981',
+                        },
                     },
-                    iconTheme: {
-                        primary: '#ffffff',
-                        secondary: '#ef4444',
-                    },
-                },
 
-                // ⚠️ Предупреждения (оранжевый)
-                loading: {
-                    duration: Infinity, // Показываем пока не закроем вручную
-                    style: {
-                        background: '#f59e0b', // amber-500
-                        color: '#ffffff',
-                        border: '1px solid #d97706', // amber-600
-                        fontWeight: '500',
+                    // ❌ Ошибки (красный)
+                    error: {
+                        duration: 6000, // Дольше показываем ошибки
+                        style: {
+                            background: '#ef4444', // red-500
+                            color: '#ffffff',
+                            border: '1px solid #dc2626', // red-600
+                            fontWeight: '500',
+                        },
+                        iconTheme: {
+                            primary: '#ffffff',
+                            secondary: '#ef4444',
+                        },
                     },
-                    iconTheme: {
-                        primary: '#ffffff',
-                        secondary: '#f59e0b',
-                    },
-                },
 
-                // 📋 Кастомные уведомления (синий - для буфера)
-                custom: {
-                    duration: 7000,
-                    style: {
-                        background: '#3b82f6', // blue-500
-                        color: '#ffffff',
-                        border: '1px solid #2563eb', // blue-600
-                        borderRadius: '10px',
-                        fontWeight: '500',
-                        padding: '16px',
-                        boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3), 0 4px 6px -2px rgba(59, 130, 246, 0.2)',
+                    // ⚠️ Предупреждения (оранжевый)
+                    loading: {
+                        duration: Infinity, // Показываем пока не закроем вручную
+                        style: {
+                            background: '#f59e0b', // amber-500
+                            color: '#ffffff',
+                            border: '1px solid #d97706', // amber-600
+                            fontWeight: '500',
+                        },
+                        iconTheme: {
+                            primary: '#ffffff',
+                            secondary: '#f59e0b',
+                        },
                     },
-                },
-            }}
-        />
+
+                    // 📋 Кастомные уведомления (синий - для буфера)
+                    custom: {
+                        duration: 7000,
+                        style: {
+                            background: '#3b82f6', // blue-500
+                            color: '#ffffff',
+                            border: '1px solid #2563eb', // blue-600
+                            borderRadius: '10px',
+                            fontWeight: '500',
+                            padding: '16px',
+                            boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3), 0 4px 6px -2px rgba(59, 130, 246, 0.2)',
+                        },
+                    },
+                }}
+            />
+            <PerformanceMonitor />
+        </ErrorBoundary>
         </body>
         </html>
     );

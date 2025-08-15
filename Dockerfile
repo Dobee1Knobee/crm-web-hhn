@@ -82,4 +82,5 @@ ENV HOSTNAME "0.0.0.0"
 
 # Cloud Run передает порт через переменную окружения PORT
 # Используем ${PORT:-8080} для fallback на 8080 если PORT не установлен
-CMD ["sh", "-c", "node server.js"]
+# Добавляем поддержку переменной PORT для Cloud Run
+CMD ["sh", "-c", "PORT=${PORT:-8080} node server.js"]

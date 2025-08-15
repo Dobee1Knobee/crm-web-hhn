@@ -233,7 +233,7 @@ export interface OrderState extends BufferState {
 
     // ===== 🆕 НОВЫЕ МЕТОДЫ ДЛЯ БУФЕРА =====
     fetchBufferOrders: () => Promise<void>;
-    claimBufferOrder: (orderId: string) => Promise<boolean>;
+    claimBufferOrder: (orderId: string, team: string | undefined) => Promise<boolean>;
     transferOrderToBuffer: (orderId: string, targetTeam: string | undefined, note?: string | undefined) => Promise<boolean>;
     refreshBuffer: () => Promise<void>;
     clearBuffer: () => void;
@@ -405,12 +405,67 @@ export const useOrderStore = create<OrderState>()(
 
                     socket.emit('join-team', {
                         team: currentUser.team,
-                        username: currentUser.userName
+                        username: currentUser.userName,
+                        at:currentUser.userAt
                     });
+
+                    // Регистрируем менеджера для таргетных уведомлений
+                    socket.emit('register-manager', {
+                        manager_id: currentUser.manager_id,
+                        at: currentUser.userAt,
+                        user_id: currentUser.userId,
+                        socket_id: socket.id
+                    });
+
+                    // Запрашиваем разрешение на системные уведомления (один раз)
+                    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                        try { Notification.requestPermission(); } catch {}
+                    }
                 });
 
                 socket.on('team-joined', (data: any) => {
                     console.log('🎉 Присоединились к команде:', data);
+                });
+
+                // 🎯 Таргетные уведомления для конкретного менеджера
+                socket.on('target-notification', (data: any) => {
+                    try {
+                        const notification = {
+                            id: Date.now(),
+                            type: 'target-notification',
+                            title: data?.title || 'Новое уведомление',
+                            message: data?.message || 'У вас новое уведомление',
+                            order_id: data?.order_id,
+                            transferred_from: data?.from,
+                            timestamp: new Date(),
+                            read: false
+                        };
+
+                        // UI тост
+                        if (data?.title || data?.message) {
+                            toast(data?.title ? `${data.title}: ${data.message}` : data.message, {
+                                icon: '🔔'
+                            });
+                        } else {
+                            toast('🔔 Новое уведомление');
+                        }
+
+                        // Сохраняем в store
+                        set(state => ({
+                            notifications: [notification, ...state.notifications]
+                        }));
+
+                        // Системное уведомление браузера (если разрешено)
+                        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                            const body = notification.message || 'У вас новое уведомление';
+                            new Notification(notification.title, {
+                                body,
+                                icon: '/favicon.ico'
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Ошибка обработки target-notification:', e, data);
+                    }
                 });
 
                 socket.on('new-order-in-buffer', (data: any) => {
@@ -553,7 +608,7 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
-            claimBufferOrder: async (orderId: string) => {
+            claimBufferOrder: async (orderId: string,team?:string) => {
                 const { currentUser } = get();
 
                 if (!currentUser) {
@@ -567,6 +622,8 @@ export const useOrderStore = create<OrderState>()(
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ team })
+
                         }
                     );
 

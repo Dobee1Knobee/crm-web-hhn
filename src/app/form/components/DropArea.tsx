@@ -46,8 +46,8 @@ interface DropAreaProps {
     onUpdateDiagonals?: (orderId: number, diagonals: string[]) => void;
     onUpdateCustomPrice?: (orderId: number, customPrice: number) => void;
     isDragOver?: boolean;
-    draggedItem?: any;
-    onDrop?: (draggedItem: any, targetMainItemId?: number) => void;
+    draggedItem?: ServiceItem;
+    onDrop?: (draggedItem: ServiceItem, targetMainItemId?: number) => void;
 }
 
 /* ---------- вспомогательные подкомпоненты ---------- */
@@ -240,7 +240,7 @@ const CustomPriceInput: React.FC<{
 const SubDropZone: React.FC<{
     mainItemId: number;
     subItems?: ServiceItem[];
-    draggedItem?: any;
+    draggedItem?: ServiceItem;
     onUpdateSubItemQuantity?: (mainItemId: number, subItemId: number, newQuantity: number) => void;
     onRemoveSubItem?: (mainItemId: number, subItemId: number) => void;
 }> = ({ mainItemId, subItems = [], draggedItem, onUpdateSubItemQuantity, onRemoveSubItem }) => {

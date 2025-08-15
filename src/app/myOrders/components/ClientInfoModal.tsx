@@ -18,7 +18,7 @@ export default function ClientInfoModal({
                                             clientId,
                                             orderId
                                         }: ClientInfoModalProps) {
-    if (!isOpen) return null
+    if (!isOpen) return null;
 
     // Форматирование client ID
     const formattedClientId = String(clientId ?? '').toString().padStart(5, '0')

@@ -1,0 +1,40 @@
+steps:
+  # Сборка Docker образа
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '--platform', 'linux/amd64',
+      '-t', 'gcr.io/carwash-master/crm-web-hhn:latest',
+      '-t', 'gcr.io/carwash-master/crm-web-hhn:$BUILD_ID',
+      '--build-arg', 'NEXT_PUBLIC_API_URL=https://bot-crm-backend-756832582185.us-central1.run.app/api',
+      '.'
+    ]
+
+  # Push образа в Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/carwash-master/crm-web-hhn:latest']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/carwash-master/crm-web-hhn:$BUILD_ID']
+
+  # Деплой на Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'crm-web-hhn',
+      '--image', 'gcr.io/carwash-master/crm-web-hhn:latest',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '8080',
+      '--memory', '512Mi',
+      '--cpu', '1',
+      '--min-instances', '0',
+      '--max-instances', '10',
+      '--set-env-vars', 'NODE_ENV=production,NEXT_PUBLIC_API_URL=https://bot-crm-backend-756832582185.us-central1.run.app/api'
+    ]
+
+images:
+  - 'gcr.io/carwash-master/crm-web-hhn:latest'
+  - 'gcr.io/carwash-master/crm-web-hhn:$BUILD_ID'
+
+timeout: '1200s'

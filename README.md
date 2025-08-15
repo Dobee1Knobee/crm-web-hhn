@@ -1,37 +1,179 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM Web HHN
 
-## Getting Started
+Современная CRM система для управления заказами и клиентами, построенная на Next.js 15 с TypeScript.
 
-First, run the development server:
+## 🚀 Новые возможности
+
+### ✨ Производительность
+- **Web Vitals мониторинг** - отслеживание Core Web Vitals в реальном времени
+- **Оптимизированные компоненты** - React.memo, useMemo, useCallback для лучшей производительности
+- **Bundle анализатор** - анализ размера бандла для оптимизации
+- **Code splitting** - автоматическое разделение кода на чанки
+
+### 🧪 Тестирование
+- **Jest + React Testing Library** - полная поддержка тестирования
+- **Покрытие кода 70%** - автоматическая проверка качества
+- **Моки и утилиты** - готовые решения для тестирования
+
+### 🛡️ Надежность
+- **Error Boundary** - глобальная обработка ошибок React
+- **Performance Monitor** - визуальный монитор производительности
+- **Skeleton компоненты** - улучшенный UX при загрузке
+
+### 🎨 UX улучшения
+- **Skeleton загрузка** - красивые плейсхолдеры для всех компонентов
+- **Адаптивный дизайн** - оптимизация для всех устройств
+- **Анимации и переходы** - плавные взаимодействия
+
+## 🛠️ Технологии
+
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Styling**: Tailwind CSS, PostCSS
+- **State Management**: Zustand
+- **Testing**: Jest, React Testing Library
+- **Performance**: Web Vitals, Bundle Analyzer
+- **Deployment**: Docker, Cloud Build
+
+## 📦 Установка
 
 ```bash
+# Клонирование репозитория
+git clone <repository-url>
+cd crm-web-hhn
+
+# Установка зависимостей
+npm install
+
+# Запуск в режиме разработки
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Сборка для продакшена
+npm run build
+
+# Запуск тестов
+npm test
+
+# Анализ размера бандла
+npm run analyze
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🧪 Тестирование
 
-You can start editing the page by modifying `app/LoginForm.tsx`. The page auto-updates as you edit the file.
+```bash
+# Запуск всех тестов
+npm test
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Тесты в режиме наблюдения
+npm run test:watch
 
-## Learn More
+# Тесты с отчетом покрытия
+npm run test:coverage
 
-To learn more about Next.js, take a look at the following resources:
+# Проверка типов TypeScript
+npm run type-check
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🚀 Команды разработки
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Разработка с Turbopack
+npm run dev
 
-## Deploy on Vercel
+# Сборка для продакшена
+npm run build
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Запуск продакшен сервера
+npm run start
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# crm-web-hhn
+# Линтинг кода
+npm run lint
+
+# Анализ производительности
+npm run analyze
+```
+
+## 📁 Структура проекта
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── auth/              # Аутентификация
+│   ├── buffer/            # Буфер заказов
+│   ├── changeOrder/       # Изменение заказов
+│   ├── form/              # Формы заказов
+│   ├── login/             # Страница входа
+│   └── myOrders/          # Мои заказы
+├── components/             # React компоненты
+│   ├── ErrorBoundary.tsx  # Обработка ошибок
+│   ├── Skeleton.tsx       # Компоненты загрузки
+│   └── PerformanceMonitor.tsx # Монитор производительности
+├── hooks/                  # Кастомные хуки
+│   ├── usePerformance.ts  # Хук производительности
+│   └── useSocket.ts       # WebSocket хук
+├── stores/                 # Zustand сторы
+├── types/                  # TypeScript типы
+└── utils/                  # Утилиты
+```
+
+## 🔧 Конфигурация
+
+### Next.js
+- Экспериментальные фичи для производительности
+- Оптимизация изображений
+- Безопасность через HTTP заголовки
+- Webpack оптимизации
+
+### Jest
+- Настройка для Next.js
+- Моки для браузерных API
+- Покрытие кода 70%
+- TypeScript поддержка
+
+## 📊 Мониторинг
+
+### Web Vitals
+- **CLS** - Cumulative Layout Shift
+- **FID** - First Input Delay  
+- **FCP** - First Contentful Paint
+- **LCP** - Largest Contentful Paint
+- **TTFB** - Time to First Byte
+
+### Производительность
+- Мониторинг памяти браузера
+- Отслеживание длительных задач
+- Анализ загрузки ресурсов
+- Автоматическая отчетность
+
+## 🚀 Деплой
+
+```bash
+# Сборка Docker образа
+docker build -t crm-web-hhn .
+
+# Запуск контейнера
+docker run -p 3000:3000 crm-web-hhn
+
+# Cloud Build (автоматический)
+# Проект настроен для автоматического деплоя
+```
+
+## 🤝 Вклад в проект
+
+1. Форкните репозиторий
+2. Создайте feature branch
+3. Добавьте тесты для новой функциональности
+4. Создайте Pull Request
+
+## 📚 Документация
+
+Подробная документация по улучшениям: [IMPROVEMENTS.md](./IMPROVEMENTS.md)
+
+## 📞 Поддержка
+
+- Создайте Issue в репозитории
+- Обратитесь к команде разработки
+- Проверьте существующую документацию
+
+## 📄 Лицензия
+
+MIT License
