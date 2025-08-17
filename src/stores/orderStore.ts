@@ -1,19 +1,19 @@
 // stores/orderStore.ts - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ С WEBSOCKET И БУФЕРОМ
-import { create } from 'zustand';
-import { devtools, subscribeWithSelector } from 'zustand/middleware';
+import { serviceCatalog } from "@/catalog/serviceCatalog"
 import {
-    Order,
-    CreateOrderData,
-    ServiceItem,
-    OrderService,
-    TransferStatus,
     convertServiceItemToOrderService,
-    OrderSearchQuery
-} from '@/types/formDataType';
-import { mapOrderToFormPatch } from "@/utils/mapOrderToForm";
-import { mapApiServicesToSelected } from "@/utils/mapApiServicesToSelected";
-import { serviceCatalog } from "@/catalog/serviceCatalog";
-import toast from "react-hot-toast";
+    CreateOrderData,
+    Order,
+    OrderSearchQuery,
+    OrderService,
+    ServiceItem,
+    TransferStatus
+} from '@/types/formDataType'
+import { mapApiServicesToSelected } from "@/utils/mapApiServicesToSelected"
+import { mapOrderToFormPatch } from "@/utils/mapOrderToForm"
+import toast from "react-hot-toast"
+import { create } from 'zustand'
+import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
 // === SOCKET CONFIG ===
 const SOCKET_URL =
@@ -139,23 +139,43 @@ interface TelegramOrder {
     team: string;
     status: 'accepted' | 'in_progress' | 'completed';
 }
+interface CorrectCityResponse {
+    address_data : { 
+        address:string;
+        data:{
+            city?: string;        // Может отсутствовать
+            town?: string;        // Альтернатива городу
+            country:string;
+            county : string,
+            house_number:string,
+            postcode:string,
+            road:string,
+            state:string,
+        },
+        nearest_cities:[{
+            distance:number;
+            name:string;
+            team:string;
+        }];
+    };
+    fit: boolean;
+    nearest_team: string;
+}
 
 // ===== СОСТОЯНИЕ БУФЕРА =====
+// Разделенные заказы
 interface BufferState {
-    // Разделенные заказы
     internalOrders: OrderBuffer[];    // Заказы от нашей команды
     externalOrders: OrderBuffer[];    // Заказы от других команд
     allBufferOrders: OrderBuffer[];   // Все заказы из буфера
-
-    // Статистика
+    
     bufferStats: {
         totalCount: number;
         internalCount: number;
         externalCount: number;
         lastUpdated: string | null;
     };
-
-    // Состояние загрузки буфера
+    
     isLoadingBuffer: boolean;
     bufferError: string | null;
 }
@@ -200,6 +220,7 @@ export interface OrderState extends BufferState {
     notifications: Array<{
         id: number;
         type: string;
+        form_id?: string; // Делаем опциональным
         title: string;
         message: string;
         order_id?: string;
@@ -208,8 +229,22 @@ export interface OrderState extends BufferState {
         read: boolean;
     }>;
 
-    // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
-    connectSocket: () => void;
+    // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
+    addressFitNotification: {
+        isVisible: boolean;
+        message: string;
+        nearestTeam: string;
+        address: string;
+        orderId?: string; // ID текущего заказа для передачи в буфер
+        phoneNumber?: string; // Номер телефона для проверки возможности создания заказа
+    } | null;
+
+                // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
+            connectSocket: () => void;
+
+            // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
+            showAddressFitNotification: (message: string, nearestTeam: string, address: string) => void;
+            hideAddressFitNotification: () => void;
     disconnectSocket: () => void;
     markNotificationAsRead: (notificationId: number) => void;
     clearNotifications: () => void;
@@ -219,6 +254,7 @@ export interface OrderState extends BufferState {
     updateFormData: (field: keyof FormData, value: string) => void;
     resetForm: () => void;
     validateForm: () => string[];
+    getCorrectCity: (address:string) => Promise<CorrectCityResponse>;
 
     // ===== ДЕЙСТВИЯ С УСЛУГАМИ =====
     addService: (service: ServiceItem, parentMainItemId?: number) => void;
@@ -322,6 +358,7 @@ export const useOrderStore = create<OrderState>()(
         subscribeWithSelector((set, get) => ({
             // ===== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ =====
             currentOrder: null,
+            addressFitNotification: null,
             formData: initialFormData,
             selectedServices: [],
             orders: [],
@@ -361,6 +398,64 @@ export const useOrderStore = create<OrderState>()(
             // ===== ПОИСК =====
             searchResults: null,
             isSearching: false,
+
+            // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
+            showAddressFitNotification: (message: string, nearestTeam: string, address: string, orderId?: string, phoneNumber?: string) => {
+                set({
+                    addressFitNotification: {
+                        isVisible: true,
+                        message,
+                        nearestTeam,
+                        address,
+                        orderId,
+                        phoneNumber
+                    }
+                }, false, 'showAddressFitNotification');
+            },
+
+            hideAddressFitNotification: () => {
+                set({ addressFitNotification: null }, false, 'hideAddressFitNotification');
+            },
+
+            // Передача заказа в буфер другой команды
+            transferOrderToBuffer: async (orderId: string, targetTeam: string, note?: string) => {
+                const { currentUser } = get();
+                if (!currentUser) {
+                    throw new Error('Пользователь не авторизован');
+                }
+
+                try {
+                    const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/orders/transfer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            order_id: orderId,
+                            from_team: currentUser.team,
+                            to_team: targetTeam,
+                            from_user: currentUser.userAt,
+                            note: note || `Автоматическая передача: адрес не подходит для команды ${currentUser.team}`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Ошибка передачи: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('Заказ успешно передан в буфер:', result);
+                    
+                    // Обновляем локальное состояние
+                    get().fetchOrders();
+                    get().fetchBufferOrders();
+                    
+                    return result;
+                } catch (error) {
+                    console.error('Ошибка передачи заказа в буфер:', error);
+                    throw error;
+                }
+            },
 
             // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
             connectSocket: () => {
@@ -433,6 +528,7 @@ export const useOrderStore = create<OrderState>()(
                         const notification = {
                             id: Date.now(),
                             type: 'target-notification',
+                            form_id: data?.form_id,
                             title: data?.title || 'Новое уведомление',
                             message: data?.message || 'У вас новое уведомление',
                             order_id: data?.order_id,
@@ -475,6 +571,7 @@ export const useOrderStore = create<OrderState>()(
                         type: 'new-order',
                         title: 'Новый заказ в буфере',
                         message: data.message,
+                        form_id: data.order_id || '', // Добавляем form_id
                         order_id: data.order_id,
                         transferred_from: data.transferred_from,
                         timestamp: new Date(),
@@ -651,6 +748,14 @@ export const useOrderStore = create<OrderState>()(
                     return false;
                 }
 
+                if (!orderId || orderId === 'undefined') {
+                    console.error('Invalid orderId:', orderId);
+                    set({ bufferError: 'Неверный ID заказа' });
+                    return false;
+                }
+
+                console.log(`🔄 Передаем заказ ${orderId} в команду ${targetTeam} пользователем ${currentUser.userAt}`);
+
                 try {
                     // ✅ Исправлен URL с правильными query параметрами
                     const response = await fetch(
@@ -682,12 +787,10 @@ export const useOrderStore = create<OrderState>()(
             // 🆕 НОВЫЙ МЕТОД: Возврат заказа из буфера
             takeOrderBackFromBuffer: async (orderId: string,team?:string) => {
                 const { currentUser } = get();
-
                 if (!currentUser) {
                     set({ bufferError: 'Пользователь не авторизован' });
                     return false;
                 }
-
                 try {
                     console.log(`🔄 Возвращаем заказ ${orderId} пользователем ${currentUser.userAt}`);
 
@@ -699,15 +802,11 @@ export const useOrderStore = create<OrderState>()(
                             body: JSON.stringify({ team })
                         }
                     );
-
-
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.message || 'Не удалось вернуть заказ');
                     }
-
                     const result = await response.json();
-
                     // Обновляем буфер и заказы после успешного возврата
                     await get().refreshBuffer();
                     await get().fetchOrders(); // Обновляем список основных заказов
@@ -800,7 +899,126 @@ export const useOrderStore = create<OrderState>()(
                     order.order_id === orderId || order._id === orderId
                 ) || null;
             },
-
+            getCorrectCity: async (address: string): Promise<CorrectCityResponse> => {
+                const user = get().currentUser;
+                
+                if (!user?.team) {
+                    throw new Error('Команда пользователя не определена');
+                }
+                
+                try {
+                    const response = await fetch(`https://tvmountmaster.ngrok.dev/get_address`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            client_address: address,
+                            team: user.team
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+                    
+                    const data: CorrectCityResponse = await response.json();
+                    
+                    // Проверяем поле fit и показываем уведомление если false
+                    if (!data.fit) {
+                        const message = `Address doesn't match your team. Recommended to transfer order to team ${data.nearest_team}`;
+                        // Получаем текущий orderId и номер телефона из формы (если есть)
+                        const currentOrderId = get().currentOrder?._id || get().currentLeadID;
+                        const currentPhoneNumber = get().formData.phoneNumber;
+                        get().showAddressFitNotification(message, data.nearest_team, address, currentOrderId, currentPhoneNumber);
+                    } else {
+                        // ===== ЛОГИКА ОБНОВЛЕНИЯ ГОРОДА/ШТАТА ДЛЯ ПОДХОДЯЩИХ АДРЕСОВ =====
+                        // Приоритет: city > town > state (с проверкой совпадения)
+                        let cityToUse = '';
+                        let shouldShowManualSelection = false;
+                        
+                        console.log('🔍 Processing suitable address - Address data received:', {
+                            city: data.address_data.data.city,
+                            state: data.address_data.data.state,
+                            postcode: data.address_data.data.postcode
+                        });
+                        
+                        // Проверяем, есть ли город в ответе (приоритет: city > state, town не используем)
+                        if (data.address_data.data.city) {
+                            cityToUse = data.address_data.data.city;
+                            console.log('✅ Using city from API:', cityToUse);
+                        } 
+                        // Если города нет, но есть штат - проверяем совпадение
+                        else if (data.address_data.data.state) {
+                            const stateName = data.address_data.data.state;
+                            console.log('🔍 Checking if state matches available cities:', stateName);
+                            
+                            // Получаем список доступных городов для команды
+                            try {
+                                console.log(`🔍 Fetching available cities for team: ${user.team}`);
+                                const citiesResponse = await fetch(
+                                    `https://bot-crm-backend-756832582185.us-central1.run.app/api/user/getCitiesByTeam?team=${user.team}`
+                                );
+                                
+                                if (citiesResponse.ok) {
+                                    const citiesData = await citiesResponse.json();
+                                    const availableCities = citiesData.cities || [];
+                                    
+                                    console.log('🏙️ Available cities for team:', availableCities.map((c: any) => c.name));
+                                    console.log(`🔍 Comparing state "${stateName}" with available cities...`);
+                                    
+                                    // Проверяем, есть ли совпадение state с доступными городами
+                                    const stateMatchesCity = availableCities.some((city: any) => {
+                                        const cityName = city.name?.toLowerCase();
+                                        const stateNameLower = stateName.toLowerCase();
+                                        const matches = cityName === stateNameLower;
+                                        console.log(`  ${cityName} === ${stateNameLower} ? ${matches}`);
+                                        return matches;
+                                    });
+                                    
+                                    if (stateMatchesCity) {
+                                        cityToUse = stateName;
+                                        console.log('✅ State matches available city, using state:', cityToUse);
+                                    } else {
+                                        console.log('❌ State does not match any available city');
+                                        shouldShowManualSelection = true;
+                                    }
+                                } else {
+                                    console.log('❌ Failed to fetch available cities:', citiesResponse.status);
+                                    shouldShowManualSelection = true;
+                                }
+                            } catch (error) {
+                                console.error('❌ Error fetching available cities:', error);
+                                shouldShowManualSelection = true;
+                            }
+                        }
+                        
+                        // Обновляем данные только если у нас есть что обновлять
+                        if (cityToUse) {
+                            console.log('🔄 Before update - Current formData.city:', get().formData.city);
+                            get().updateFormData('city', cityToUse);
+                            get().updateFormData('zipCode', data.address_data.data.postcode || '');
+                            console.log('✅ Updated form data with:', { 
+                                city: cityToUse, 
+                                zipCode: data.address_data.data.postcode 
+                            });
+                        } else if (shouldShowManualSelection) {
+                            console.log('❌ No suitable city found, showing manual selection message');
+                            toast.error(`City not detected automatically. 
+                                State "${data.address_data.data.state}" doesn't match available cities for team ${user.team}. 
+                                Please select city manually.`);
+                        } else {
+                            console.log('❌ No city, town, or state found, keeping original form data unchanged');
+                        }
+                    }
+                    
+                    return data; 
+                    
+                } catch (error) {
+                    console.error('Error getting correct city:', error);
+                    throw error; 
+                }
+            },
             filterBufferOrders: (filter: 'all' | 'internal' | 'external') => {
                 const { allBufferOrders, internalOrders, externalOrders } = get();
 
@@ -880,19 +1098,25 @@ export const useOrderStore = create<OrderState>()(
 
             // ===== ФОРМЫ =====
             updateFormData: (field, value) => {
+                console.log(`🔄 updateFormData called: ${field} = ${value}`);
+                if (field === 'city') {
+                    console.log(`🏙️ City update: ${value} (previous: ${get().formData.city})`);
+                }
                 set(state => ({
                     formData: { ...state.formData, [field]: value }
                 }), false, 'updateFormData');
             },
 
             resetForm: () => {
+                console.log('🔄 resetForm called - resetting all form data');
                 set({
                     formData: initialFormData,
                     selectedServices: [],
                     currentOrder: null,
                     currentTelegramOrder: null,
                     isWorkingOnTelegramOrder: false,
-                    error: null
+                    error: null,
+                    addressFitNotification: null // Сбрасываем адресные уведомления
                 }, false, 'resetForm');
             },
 
@@ -1136,6 +1360,13 @@ export const useOrderStore = create<OrderState>()(
                     }
 
                     const createdOrder: Order = await response.json();
+                    
+                    console.log('🔍 API response for createOrder:', createdOrder);
+                    console.log('🔍 Order ID fields:', {
+                        leadId: createdOrder.leadId,
+                        _id: createdOrder._id,
+                        order_id: createdOrder.order_id
+                    });
 
                     toast.success(`Successfully created order ${createdOrder.leadId}`);
                     set(state => ({
@@ -1144,7 +1375,8 @@ export const useOrderStore = create<OrderState>()(
                         isSaving: false
                     }));
 
-                    get().resetForm();
+                    // НЕ сбрасываем форму, если заказ создается для передачи в буфер
+                    // get().resetForm();
                     return createdOrder;
 
                 } catch (error) {

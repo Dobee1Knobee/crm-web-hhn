@@ -1,9 +1,20 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+
+interface City {
+    _id: string;
+    name: string;
+    timezone: string;
+    team: string;
+    boundingbox: number[];
+    latitude: number;
+    longitude: number;
+    location: any;
+}
 
 export const useGetCities = (team: string) => {
-    const [cities, setCities] = useState([]);
+    const [cities, setCities] = useState<City[]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!team) return; // если нет команды — не запрашиваем
@@ -25,6 +36,7 @@ export const useGetCities = (team: string) => {
                 setCities(data.cities || []);
             } catch (err) {
                 console.error("❌ Ошибка загрузки городов:", err);
+                setError(err instanceof Error ? err.message : 'Unknown error');
             } finally {
                 setLoading(false);
             }

@@ -1,13 +1,13 @@
 "use client"
-import CustomerInfo from "@/app/form/components/OrderForm/components/CustomerInfo";
-import DateAndTime from "@/app/form/components/OrderForm/components/DateAndTime";
-import {User} from "@/hooks/useUserByAt";
-import Cities from "@/app/form/components/OrderForm/components/Cities";
-import {useEffect} from "react";
-import OrderDescription from "@/app/changeOrder/components/OrderDescription";
-import ServicesWindow from "@/app/changeOrder/components/ServicesWindow";
-import Masters from "@/app/changeOrder/components/Masters";
-import {useOrderStore} from "@/stores/orderStore";
+import Masters from "@/app/changeOrder/components/Masters"
+import OrderDescription from "@/app/changeOrder/components/OrderDescription"
+import ServicesWindow from "@/app/changeOrder/components/ServicesWindow"
+import Cities from "@/app/form/components/OrderForm/components/Cities"
+import CustomerInfo from "@/app/form/components/OrderForm/components/CustomerInfo"
+import DateAndTime from "@/app/form/components/OrderForm/components/DateAndTime"
+import { User } from "@/hooks/useUserByAt"
+import { useOrderStore } from "@/stores/orderStore"
+import { useEffect } from "react"
 
 interface Props {
     user: User;
@@ -20,13 +20,15 @@ export default function OrderForm({ leadId }: Props) {
     const team = typeof user?.team === 'string' ? user.team : user?.team ?? 'A';
     const city = useOrderStore(state => state.formData.city);
     const teamId = useOrderStore(state => state.formData.teamId);
-    const { updateFormData } = useOrderStore();
+    const { updateFormData} = useOrderStore();
+    
 
 
     // Устанавливаем команду пользователя в store при загрузке только если teamId === "Init"
     useEffect(() => {
         if (team && teamId === "Init") {
             updateFormData('teamId', team);
+           useOrderStore.setState({currentLeadID: ""})
         }
     }, [team, teamId, updateFormData]);
 

@@ -1,10 +1,17 @@
 // Cities.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ
-import { useGetCities } from "@/hooks/useCitiesByTeam";
-import { useOrderStore } from '@/stores/orderStore';
-import { useEffect } from "react";
+import { useGetCities } from "@/hooks/useCitiesByTeam"
+import { useOrderStore } from '@/stores/orderStore'
+import { useEffect } from "react"
 
 interface City {
+    _id: string;
     name: string;
+    timezone: string;
+    team: string;
+    boundingbox: number[];
+    latitude: number;
+    longitude: number;
+    location: any;
 }
 type CitiesProps = {
     team: string;
@@ -14,9 +21,10 @@ export default function Cities({ team }: CitiesProps) {
     // 🏪 Подключаемся к store
     const {
         formData,
-        updateFormData,
+        updateFormData,     
         currentUser,
-        isWorkingOnTelegramOrder
+        isWorkingOnTelegramOrder,
+        getCorrectCity
     } = useOrderStore();
 
     // Получаем команду из store
@@ -27,13 +35,49 @@ export default function Cities({ team }: CitiesProps) {
     // Обработка выбора города
     const handleCityClick = (cityName: string) => {
         updateFormData('city', cityName);
+        // Вызываем getCorrectCity только если нужно получить дополнительную информацию
+        // getCorrectCity(cityName).then((data) => {
+        //     updateFormData('city', data.address_data.data.city);
+        // });
     };
 
     // При загрузке компонента, если город не выбран - выбираем первый доступный
+    // НО только если это не системно установленный город (не из AddressFitNotification)
     useEffect(() => {
+        console.log('🏙️ Cities useEffect triggered:', {
+            citiesLength: cities?.length,
+            currentCity: formData.city,
+            cities: cities?.map(c => c.name)
+        });
+        
+        // НЕ выполняем авто-выбор, если город уже был установлен системой
+        // или если это не начальное состояние
         if (cities && cities.length > 0 && !formData.city) {
-            const firstCity = typeof cities[0] === 'string' ? cities[0] : cities[0];
-            updateFormData('city', firstCity);
+            // Проверяем, не был ли город уже установлен системой
+            const currentCity = formData.city;
+            
+            // Авто-выбор только для начального состояния или если город действительно пустой
+            if (!currentCity || currentCity === 'New_York') {
+                const firstCity = cities[0] as City;
+                if (firstCity && firstCity.name) {
+                    console.log('🏙️ Auto-selecting first available city:', firstCity.name);
+                    updateFormData('city', firstCity.name);
+                }
+            } else {
+                console.log('🏙️ City already set, not auto-selecting:', currentCity);
+            }
+        }
+        
+        // Дополнительная проверка: если город был установлен, но не в списке доступных
+        if (formData.city && cities && cities.length > 0) {
+            const cityExists = cities.some((city: City) => 
+                city.name && city.name.toLowerCase() === formData.city.toLowerCase()
+            );
+            
+            if (!cityExists) {
+                console.log('⚠️ Current city not in available cities list:', formData.city);
+                console.log('🏙️ Available cities:', cities.map(c => c.name));
+            }
         }
     }, [cities, formData.city, updateFormData]);
 
@@ -89,12 +133,18 @@ export default function Cities({ team }: CitiesProps) {
             {/* 🏙️ Сетка городов */}
             <div className="grid grid-cols-4 gap-3">
                 {cities?.map((city: City, index: number) => {
-                    const cityName = typeof city === 'string' ? city : city.name || 'Unknown';
+                    // Проверяем, что city это объект и у него есть name
+                    if (!city || typeof city !== 'object' || !city.name) {
+                        console.warn('Invalid city data:', city);
+                        return null;
+                    }
+                    
+                    const cityName = city.name;
                     const isSelected = formData.city === cityName;
 
                     return (
                         <button
-                            key={index}
+                            key={city._id || index}
                             onClick={() => handleCityClick(cityName)}
                             className={`
                                 px-4 py-3 rounded-xl text-white font-semibold text-sm
@@ -142,7 +192,7 @@ export default function Cities({ team }: CitiesProps) {
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex items-center">
                         <span className="text-yellow-600 mr-2">⚠️</span>
-                        <span className="text-yellow-800 text-sm">
+                        <span className="text-red-800 text-sm">
                             No cities available for team {team}. Please contact administrator.
                         </span>
                     </div>

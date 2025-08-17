@@ -1,5 +1,5 @@
 // CustomerInfo.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ
-import { useOrderStore } from '@/stores/orderStore';
+import { useOrderStore } from '@/stores/orderStore'
 
 export default function CustomerInfo() {
     // 🏪 Подключаемся к store
@@ -9,7 +9,7 @@ export default function CustomerInfo() {
         isWorkingOnTelegramOrder,
         currentTelegramOrder
     } = useOrderStore();
-
+    
     return (
         <div className="bg-white shadow-md rounded-2xl p-6 m-9 w-full max-w-xl">
             <div className="flex items-center mb-4">

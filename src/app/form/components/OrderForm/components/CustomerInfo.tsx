@@ -1,8 +1,10 @@
 // CustomerInfo.tsx - CLEAN VERSION WITHOUT DEBUG
-import { useOrderStore } from '@/stores/orderStore';
-import { useState, useEffect, useRef } from 'react';
-import Order from '@/types/formDataType';
-import { useRouter } from "next/navigation";
+import { AddressApproveModal } from '@/components/AddressApproveModal'
+import { useOrderStore } from '@/stores/orderStore'
+import Order from '@/types/formDataType'
+import { Globe } from 'lucide-react'
+import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from 'react'
 
 export default function CustomerInfo() {
     // 🏪 Подключаемся к store
@@ -12,7 +14,9 @@ export default function CustomerInfo() {
         isWorkingOnTelegramOrder,
         currentTelegramOrder,
         checkDoubleOrders,
-        getByLeadID
+        getByLeadID,
+        getCorrectCity,
+        currentUser
     } = useOrderStore();
 
     const router = useRouter();
@@ -23,9 +27,105 @@ export default function CustomerInfo() {
     const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
     const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
     const [phoneError, setPhoneError] = useState<string>('');
+    
+    // 🏠 Состояние для модального окна апрува адреса
+    const [showAddressModal, setShowAddressModal] = useState(false);
+    const [detectedAddress, setDetectedAddress] = useState<{
+        address: string;
+        zipCode: string;
+        city: string;
+    } | null>(null);
+    const [isCheckingAddress, setIsCheckingAddress] = useState(false);
 
     // Ref для клика вне выпадающего списка
     const duplicatesRef = useRef<HTMLDivElement>(null);
+
+    // Сбрасываем детектированный адрес при сбросе формы
+    useEffect(() => {
+        const unsubscribe = useOrderStore.subscribe(
+            (state) => state.formData,
+            (newFormData, prevFormData) => {
+                // Если форма была сброшена (все поля пустые), сбрасываем детектированный адрес
+                if (prevFormData && newFormData && 
+                    prevFormData.address && !newFormData.address &&
+                    prevFormData.phoneNumber && !newFormData.phoneNumber) {
+                    setDetectedAddress(null);
+                }
+            }
+        );
+
+        return unsubscribe;
+    }, []);
+
+    // 🏠 Функция автоматической проверки адреса
+    const checkAddress = async (address: string) => {
+        if (!address.trim() || address.trim().length < 5) {
+            setDetectedAddress(null);
+            return;
+        }
+
+        setIsCheckingAddress(true);
+        
+        try {
+            const addressData = await getCorrectCity(address.trim());
+            
+            if (addressData && addressData.address_data) {
+                // ===== ЛОГИКА ОБНОВЛЕНИЯ ГОРОДА/ШТАТА =====
+                // Приоритет: city > state (town не используем)
+                let cityToUse = '';
+                
+                // Проверяем, есть ли город в ответе
+                if (addressData.address_data.data.city) {
+                    cityToUse = addressData.address_data.data.city;
+                } 
+                // Если города нет, но есть штат - проверяем совпадение
+                else if (addressData.address_data.data.state) {
+                    const stateName = addressData.address_data.data.state;
+                    
+                    // Получаем список доступных городов для команды
+                    try {
+                        const citiesResponse = await fetch(
+                            `https://bot-crm-backend-756832582185.us-central1.run.app/api/user/getCitiesByTeam?team=${currentUser?.team}`
+                        );
+                        
+                        if (citiesResponse.ok) {
+                            const citiesData = await citiesResponse.json();
+                            const availableCities = citiesData.cities || [];
+                            
+                            // Проверяем, есть ли совпадение state с доступными городами
+                            const stateMatchesCity = availableCities.some((city: any) => 
+                                city.name && city.name.toLowerCase() === stateName.toLowerCase()
+                            );
+                            
+                            if (stateMatchesCity) {
+                                cityToUse = stateName;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error fetching available cities:', error);
+                    }
+                }
+                
+                const detected = {
+                    address: addressData.address_data.address,
+                    zipCode: addressData.address_data.data.postcode,
+                    city: cityToUse
+                };
+            
+                // Устанавливаем детектированный адрес только если он отличается от текущего
+                if (detected.address !== address.trim()) {
+                    setDetectedAddress(detected);
+                } else {
+                    setDetectedAddress(null);
+                }
+            }
+        } catch (error) {
+            console.error('Error checking address:', error);
+            setDetectedAddress(null);
+        } finally {
+            setIsCheckingAddress(false);
+        }
+    };
 
     // 🔍 Функция проверки дублей
     const handlePhoneCheck = async (phoneNumber: string) => {
@@ -337,29 +437,67 @@ export default function CustomerInfo() {
                 </div>
 
                 {/* 🏠 Адрес - ВСЕГДА редактируемый */}
-                <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Address, ZIP code"
-                        maxLength={40}
-
-                        value={formData.address}
-                        onChange={(e) => updateFormData('address', e.target.value)}
-                        autoComplete="off"
-                        className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none transition focus:ring duration-300 ease-in-out focus:ring-blue-400 ${
-                            formData.address
-                                ? 'bg-white text-gray-900'
-                                : 'bg-gray-50 text-gray-500'
-                        }`}
-                    />
-
-                    {/* ✅ Индикатор заполненности */}
-                    {formData.address && (
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <span className="text-green-500">✓</span>
-                        </div>
-                    )}
-                </div>
+                                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            placeholder="Address, ZIP code"
+                            maxLength={40}
+                            value={formData.address}
+                            onChange={(e) => {
+                                updateFormData('address', e.target.value);
+                                // Очищаем предыдущий детектированный адрес при изменении
+                                setDetectedAddress(null);
+                                // Автоматическая проверка адреса с задержкой
+                                setTimeout(() => checkAddress(e.target.value), 1000);
+                            }}
+                            onBlur={() => {
+                                // Если поле адреса пустое, сбрасываем детектированный адрес
+                                if (!formData.address.trim()) {
+                                    setDetectedAddress(null);
+                                }
+                            }}
+                            autoComplete="off"
+                            className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none transition focus:ring duration-300 ease-in-out focus:ring-blue-400 ${
+                                formData.address
+                                    ? 'bg-white text-gray-900'
+                                    : 'bg-gray-50 text-gray-500'
+                            }`}
+                        />
+                        
+                        {/* ✅ Индикатор заполненности */}
+                        {formData.address && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                <span className="text-green-500">✓</span>
+                            </div>
+                        )}
+                        
+                        {/* 🔍 Индикатор детектированного адреса - ПОЯВЛЯЕТСЯ ТОЛЬКО ПОСЛЕ ДЕТЕКЦИИ И ЕСЛИ АДРЕС ОТЛИЧАЕТСЯ */}
+                        {detectedAddress && 
+                         detectedAddress.address !== formData.address && (
+                            <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                                <button
+                                    onClick={() => setShowAddressModal(true)}
+                                    className="group relative"
+                                    title="Click to apply detected address for better service"
+                                >
+                                    <Globe className="w-4 h-4 text-blue-600 hover:text-blue-700 transition-colors" />
+                                    
+                                    {/* Tooltip */}
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                        Click to apply detected address for better service
+                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+                        
+                        {/* 🔄 Индикатор проверки адреса */}
+                        {isCheckingAddress && (
+                            <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            </div>
+                        )}
+                    </div>
             </div>
 
             {/* 📱 Показываем исходное сообщение клиента из Telegram */}
@@ -402,6 +540,15 @@ export default function CustomerInfo() {
                     ></div>
                 </div>
             </div>
+            
+            {/* 🏠 Модальное окно апрува адреса */}
+            {detectedAddress && (
+                <AddressApproveModal
+                    isOpen={showAddressModal}
+                    onClose={() => setShowAddressModal(false)}
+                    detectedAddress={detectedAddress}
+                />
+            )}
         </div>
     );
 }

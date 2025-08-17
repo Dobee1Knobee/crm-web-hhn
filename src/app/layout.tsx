@@ -1,9 +1,10 @@
 // src/app/layout.tsx
-import { Inter } from 'next/font/google';
-import {Toaster} from "react-hot-toast";
 import AuthProvider from "@/app/auth/AuthProvider";
+import { AddressFitNotification } from "@/components/AddressFitNotification";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PerformanceMonitor from "@/components/PerformanceMonitor";
+import { Inter } from 'next/font/google';
+import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>
                 {children}
             </AuthProvider>
+            <AddressFitNotification />
             <Toaster
                 position="top-right"
                 reverseOrder={false}

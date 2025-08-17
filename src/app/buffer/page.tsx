@@ -1,7 +1,6 @@
-import Header from "@/app/form/components/Header";
-import Sidebar from "@/app/form/components/Sidebar";
-import StatisticBuffer from "@/app/buffer/components/StaticBuffer";
-import BufferedOrders from "@/app/buffer/components/BufferedOrders";
+import BufferedOrders from "@/app/buffer/components/BufferedOrders"
+import Header from "@/app/form/components/Header"
+import Sidebar from "@/app/form/components/Sidebar"
 
 export default function Buffer() {
     return (
@@ -15,7 +14,6 @@ export default function Buffer() {
 
                 {/* Контент с прокруткой */}
                 <div className="flex-1 overflow-y-auto">
-                    <StatisticBuffer />
                     <BufferedOrders />
                 </div>
             </div>

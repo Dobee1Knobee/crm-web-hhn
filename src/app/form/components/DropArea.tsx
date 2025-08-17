@@ -1,27 +1,26 @@
 // DropArea.tsx — адаптивные размеры + total не выходит за рамки
 "use client";
-import React, { useState } from "react";
-import { useDroppable } from "@dnd-kit/core";
-import { useOrderStore } from "@/stores/orderStore";
+import { useOrderStore } from "@/stores/orderStore"
+import { useDroppable } from "@dnd-kit/core"
 import {
-    ClipboardList,
-    Smartphone,
-    AlertTriangle,
-    X,
-    Minus,
-    Plus,
-    Trash2,
-    Save,
-    Send,
-    Tv,
-    DollarSign,
-    Paperclip,
-    Edit3,
-    Check,
-    XCircle,
     AlertCircle,
-    Loader2
-} from 'lucide-react';
+    AlertTriangle,
+    Check,
+    ClipboardList,
+    DollarSign,
+    Edit3,
+    Loader2,
+    Minus,
+    Paperclip,
+    Plus,
+    Save,
+    Smartphone,
+    Trash2,
+    Tv,
+    X,
+    XCircle
+} from 'lucide-react'
+import React, { useState } from "react"
 
 export interface ServiceItem {
     id: string;
@@ -561,9 +560,9 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         <SubDropZone
                                             mainItemId={item.orderId!}
                                             subItems={item.subItems}
-                                            draggedItem={draggedItem}
-                                            onUpdateSubItemQuantity={onUpdateSubItemQuantity}
+                                            draggedItem={draggedItem ||undefined}                           onUpdateSubItemQuantity={onUpdateSubItemQuantity}
                                             onRemoveSubItem={onRemoveSubItem}
+                                
                                         />
                                     )}
                                 </li>
