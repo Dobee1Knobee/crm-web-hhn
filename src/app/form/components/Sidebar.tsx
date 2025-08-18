@@ -7,6 +7,7 @@ import {
     Calendar,
     ClipboardList,
     DollarSign,
+    FileText,
     Folder,
     Lock,
     Phone,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react"
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import ClaimedOrderCard from './ClaimedOrderCard'
 import ConfidentialViewModal from './ConfidentialViewModal'
 
 export default function Sidebar() {
@@ -48,6 +50,17 @@ export default function Sidebar() {
     const bufferCount = useOrderStore(state => state.bufferStats.totalCount);
     const { isSocketConnected} = useOrderStore();
 
+    //Заклейменные заказы
+    const noteOfClaimedOrder = useOrderStore(state => state.noteOfClaimedOrder);
+    const clearClaimedOrders = useOrderStore(state => state.clearClaimedOrders);
+    const syncClaimedOrders = useOrderStore(state => state.syncClaimedOrders);
+    
+    // Отладочная информация
+    console.log('🔍 Sidebar - noteOfClaimedOrder:', noteOfClaimedOrder);
+    console.log('🔍 Sidebar - Type:', typeof noteOfClaimedOrder);
+    console.log('🔍 Sidebar - Is Array:', Array.isArray(noteOfClaimedOrder));
+    console.log('🔍 Sidebar - Length:', noteOfClaimedOrder?.length);
+    console.log('🔍 Sidebar - sessionStorage:', sessionStorage.getItem('noteOfClaimedOrder'));
 
 
     // Загрузка активного таба
@@ -58,6 +71,13 @@ export default function Sidebar() {
             setActiveTab(saved);
         }
     }, []);
+
+    // Синхронизация заклейменных заказов при загрузке
+    useEffect(() => {
+        console.log('🔄 Sidebar - Syncing claimed orders on mount');
+        const syncedOrders = syncClaimedOrders();
+        console.log('🔄 Sidebar - Synced orders:', syncedOrders);
+    }, [syncClaimedOrders]);
 
     // Сохранение активного таба
     useEffect(() => {
@@ -175,6 +195,34 @@ export default function Sidebar() {
                 <div className="flex-1 overflow-hidden">
                     {isExpanded ? (
                         <div className="p-4 space-y-3 h-full flex flex-col">
+                            {/* Claimed Orders Section */}
+                            <div className="mb-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        Claimed Orders ({noteOfClaimedOrder?.length || 0})
+                                    </h3>
+                        
+                                </div>
+                                
+                                {noteOfClaimedOrder && Array.isArray(noteOfClaimedOrder) && noteOfClaimedOrder.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {noteOfClaimedOrder.map(order => (
+                                            <ClaimedOrderCard key={order.telephone} order={order} onTakeToWork={() => {}} />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-gray-500">
+                                        <div className="mb-2">
+                                            <FileText size={24} className="mx-auto text-gray-400" />
+                                        </div>
+                                        <div className="text-sm">No claimed orders yet</div>
+                                        <div className="text-xs text-gray-400 mt-1">
+                                        Orders you claim from telegram will appear here
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             {/* Navigation buttons */}
                             <div>
                                 {isSocketConnected ? (
@@ -448,7 +496,17 @@ export default function Sidebar() {
                         console.log('🔍 onCancel called');
                         handleCancelView();
                     }}
-                    orderInfo={selectedNotMyOrder}
+                    orderInfo={selectedNotMyOrder ? {
+                        order_id: selectedNotMyOrder.order_id,
+                        owner: selectedNotMyOrder.owner,
+                        leadName: selectedNotMyOrder.leadName,
+                        text_status: selectedNotMyOrder.text_status
+                    } : {
+                        order_id: undefined,
+                        owner: undefined,
+                        leadName: undefined,
+                        text_status: undefined
+                    }}
                 />
             )}
 

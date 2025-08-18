@@ -230,6 +230,11 @@ export interface OrderState extends BufferState {
         read: boolean;
     }>;
     noteOfClaimedOrder: NoteOfClaimedOrder[];
+    
+    // ===== ДЕЙСТВИЯ С ЗАКЛЕЙМЕННЫМИ ЗАКАЗАМИ =====
+    clearClaimedOrders: () => void;
+    syncClaimedOrders: () => NoteOfClaimedOrder[];
+    
     // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
     addressFitNotification: {
         isVisible: boolean;
@@ -345,7 +350,6 @@ export interface NoteOfClaimedOrder {
     telephone: string;
     name: string;
     text: {
-        name: string;
         size: string;
         mountType: string;
         surfaceType: string;
@@ -416,7 +420,28 @@ export const useOrderStore = create<OrderState>()(
             bufferError: null,
 
             // =====  НОТЫ ЗАКАЗОВ =====
-            noteOfClaimedOrder:sessionStorage.getItem('noteOfClaimedOrder') ? JSON.parse(sessionStorage.getItem('noteOfClaimedOrder') || '[]') : [],
+            noteOfClaimedOrder: (() => {
+                try {
+                    const stored = sessionStorage.getItem('noteOfClaimedOrder');
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        console.log('🔍 Store init - Loaded from sessionStorage:', parsed);
+                        
+                        // Если это одиночный объект, преобразуем в массив
+                        if (!Array.isArray(parsed)) {
+                            console.log('🔍 Store init - Converting single object to array');
+                            return [parsed];
+                        }
+                        
+                        return parsed;
+                    }
+                    console.log('🔍 Store init - No sessionStorage data, using empty array');
+                    return [];
+                } catch (error) {
+                    console.error('🔍 Store init - Error parsing sessionStorage:', error);
+                    return [];
+                }
+            })(),
 
             // ===== ПОИСК =====
             searchResults: null,
@@ -523,10 +548,15 @@ export const useOrderStore = create<OrderState>()(
                         };
                         const noteData = await get().getNoteOfClaimedOrder(data?.form_id);
                         if (noteData) {
+                            console.log('🔍 Adding new claimed order:', noteData);
                             set(state => ({
                                 noteOfClaimedOrder: [...state.noteOfClaimedOrder, noteData]
                             }));
-                           
+                            
+                            // Сохраняем в sessionStorage
+                            const updatedOrders = [...get().noteOfClaimedOrder, noteData];
+                            sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(updatedOrders));
+                            console.log('💾 Saved to sessionStorage:', updatedOrders);
                         }
                     
 
@@ -804,6 +834,39 @@ export const useOrderStore = create<OrderState>()(
                     return false;
                 }
             },
+            // Очистка заклейменных заказов
+            clearClaimedOrders: () => {
+                console.log('🧹 Clearing claimed orders');
+                set({ noteOfClaimedOrder: [] });
+                sessionStorage.removeItem('noteOfClaimedOrder');
+            },
+
+            // Синхронизация store с sessionStorage
+            syncClaimedOrders: () => {
+                try {
+                    const stored = sessionStorage.getItem('noteOfClaimedOrder');
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        let ordersArray: NoteOfClaimedOrder[] = [];
+                        
+                        if (Array.isArray(parsed)) {
+                            ordersArray = parsed;
+                        } else if (parsed) {
+                            ordersArray = [parsed];
+                        }
+                        
+                        console.log('🔄 Syncing store with sessionStorage:', ordersArray);
+                        set({ noteOfClaimedOrder: ordersArray });
+                        return ordersArray;
+                    }
+                    return [];
+                } catch (error) {
+                    console.error('Error syncing claimed orders:', error);
+                    return [];
+                }
+            },
+
+            // Получение заклейменных заказов
             getNoteOfClaimedOrder: async (form_id: string): Promise<NoteOfClaimedOrder | undefined> => {
                 try {
                     console.log('🔍 Fetching form data for form_id:', form_id);
@@ -827,8 +890,7 @@ export const useOrderStore = create<OrderState>()(
                     const noteData: NoteOfClaimedOrder = {
                         telephone: data.form?.telephone || '',      
                         name: data.form?.client_name || '',           
-                        text: {
-                            name: data.form?.text?.name || '',         
+                        text: {        
                             size: data.form?.text?.size || '',         
                             mountType: data.form?.text?.['mountType'] || '', 
                             surfaceType: data.form?.text?.['surfaceType'] || '', 
@@ -841,7 +903,28 @@ export const useOrderStore = create<OrderState>()(
                     
                     console.log('✅ Transformed noteData:', noteData); // ← И ЭТО
                     //TODO: реализовать кастомный буффер каждому менеджеру по текущим не обработаннным заказам
-                    sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(noteData));
+                    
+                    // Получаем текущие заказы из sessionStorage
+                    const currentOrders = sessionStorage.getItem('noteOfClaimedOrder');
+                    let ordersArray: NoteOfClaimedOrder[] = [];
+                    
+                    if (currentOrders) {
+                        try {
+                            const parsed = JSON.parse(currentOrders);
+                            ordersArray = Array.isArray(parsed) ? parsed : [parsed];
+                        } catch (error) {
+                            console.error('Error parsing current orders:', error);
+                            ordersArray = [];
+                        }
+                    }
+                    
+                    // Добавляем новый заказ в массив
+                    ordersArray.push(noteData);
+                    
+                    // Сохраняем обновленный массив
+                    sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(ordersArray));
+                    console.log('💾 Saved updated orders array to sessionStorage:', ordersArray);
+                    
                     return noteData;
                 } catch (error) {
                     console.error('Error fetching form notes:', error);
