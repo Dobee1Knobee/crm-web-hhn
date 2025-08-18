@@ -1,22 +1,22 @@
 // src/app/form/components/Sidebar.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useOrderStore } from '@/stores/orderStore';
-import ConfidentialViewModal from './ConfidentialViewModal';
+import { useOrderStore } from '@/stores/orderStore'
+import Order from "@/types/formDataType"
 import {
-    Plus,
-    ClipboardList,
-    Folder,
-    Search,
-    User,
-    Phone,
     Calendar,
+    ClipboardList,
     DollarSign,
-    Lock
-} from "lucide-react";
-import Order from "@/types/formDataType";
+    Folder,
+    Lock,
+    Phone,
+    Plus,
+    Search,
+    User
+} from "lucide-react"
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import ConfidentialViewModal from './ConfidentialViewModal'
 
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -130,6 +130,7 @@ export default function Sidebar() {
 
     // Подтверждение просмотра чужого заказа
     const handleConfirmView = async () => {
+        console.log('🔍 handleConfirmView called');
         if (selectedNotMyOrder) {
             await viewNotMyOrder(selectedNotMyOrder.order_id);
             await getByLeadID(selectedNotMyOrder.order_id);
@@ -140,6 +141,7 @@ export default function Sidebar() {
 
     // Отмена просмотра
     const handleCancelView = () => {
+        console.log('🔍 handleCancelView called');
         setSelectedNotMyOrder(undefined);
         setShowConfidentialModal(false);
     };
@@ -435,12 +437,20 @@ export default function Sidebar() {
             </div>
 
             {/* Модальное окно конфиденциальности */}
-            <ConfidentialViewModal
-                isOpen={showConfidentialModal}
-                onConfirm={handleConfirmView}
-                onCancel={handleCancelView}
-                orderInfo={selectedNotMyOrder}
-            />
+            {showConfidentialModal && (
+                <ConfidentialViewModal
+                    isOpen={showConfidentialModal}
+                    onConfirm={() => {
+                        console.log('🔍 onConfirm called');
+                        handleConfirmView();
+                    }}
+                    onCancel={() => {
+                        console.log('🔍 onCancel called');
+                        handleCancelView();
+                    }}
+                    orderInfo={selectedNotMyOrder}
+                />
+            )}
 
             {/* Main content area */}
             <div className="flex-1">

@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react'
 
 interface ConfidentialViewModalProps {
     isOpen: boolean;
-    onClose: () => void;
-    data: {
+    onConfirm: () => void;
+    onCancel: () => void;
+    orderInfo: {
         order_id?: string;
         owner?: string;
         leadName?: string;
@@ -12,16 +13,17 @@ interface ConfidentialViewModalProps {
 }
 
 export default function ConfidentialViewModal({
-                                                  isOpen,
-                                                  onClose,
-                                                  data
-                                              }: ConfidentialViewModalProps) {
+    isOpen,
+    onConfirm,
+    onCancel,
+    orderInfo
+}: ConfidentialViewModalProps) {
 
     // Закрытие по Escape
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                onClose();
+                onCancel();
             }
         };
 
@@ -34,7 +36,7 @@ export default function ConfidentialViewModal({
             document.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = 'unset';
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, onCancel]);
 
     if (!isOpen) return null;
 
@@ -56,24 +58,24 @@ export default function ConfidentialViewModal({
                 </div>
 
                 {/* Информация о заказе */}
-                {data && (
+                {orderInfo && (
                     <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <span className="text-gray-500">Order ID:</span>
-                                <div className="font-mono font-semibold">{data.order_id}</div>
+                                <div className="font-mono font-semibold">{orderInfo.order_id}</div>
                             </div>
                             <div>
                                 <span className="text-gray-500">Owner:</span>
-                                <div className="font-semibold text-blue-600">{data.owner}</div>
+                                <div className="font-semibold text-blue-600">{orderInfo.owner}</div>
                             </div>
                             <div>
                                 <span className="text-gray-500">Customer:</span>
-                                <div className="font-semibold">{data.leadName || 'N/A'}</div>
+                                <div className="font-semibold">{orderInfo.leadName || 'N/A'}</div>
                             </div>
                             <div>
                                 <span className="text-gray-500">Status:</span>
-                                <div className="font-semibold">{data.text_status || 'N/A'}</div>
+                                <div className="font-semibold">{orderInfo.text_status || 'N/A'}</div>
                             </div>
                         </div>
                     </div>
@@ -148,7 +150,7 @@ export default function ConfidentialViewModal({
                 {/* Кнопки действий */}
                 <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
                     <button
-                        onClick={onClose}
+                        onClick={onCancel}
                         className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                     >
                         Cancel
@@ -157,10 +159,7 @@ export default function ConfidentialViewModal({
                         onClick={() => {
                             const checkbox = document.getElementById('confidential-agreement') as HTMLInputElement;
                             if (checkbox?.checked) {
-                                // The original code had onConfirm, but onConfirm was not defined in the new interface.
-                                // Assuming onClose is the intended action for now, or that onConfirm will be added later.
-                                // For now, removing the call to onConfirm as it's not in the new interface.
-                                onClose();
+                                onConfirm();
                             } else {
                                 alert('Please confirm that you agree to the confidentiality terms.');
                             }

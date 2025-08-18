@@ -149,7 +149,7 @@ export const AddressFitNotification: React.FC = () => {
                     console.log('🔄 Before update - Current formData.city:', formData.city);
                     updateFormData('city', cityToUse);
                     updateFormData('zipCode', addressData.address_data.data.postcode || '');
-                    updateFormData('teamId', addressFitNotification.nearestTeam);
+                    updateFormData('teamId', currentUser?.team);
                     updateFormData('text_status', 'Другой регион');
                     console.log('✅ Updated form data with:', { 
                         city: cityToUse, 
