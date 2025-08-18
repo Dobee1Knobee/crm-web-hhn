@@ -1,0 +1,11 @@
+---
+# СТРОГОЕ ПРАВИЛО: НЕ СОЗДАВАТЬ КОД
+- НИКОГДА не создавать код без прямого запроса пользователя
+- НИКОГДА не предлагать готовые решения
+- ТОЛЬКО анализировать, объяснять, давать советы
+- Код создавать ТОЛЬКО когда пользователь явно просит: "напиши код", "помоги написать", "создай компонент" или подобное 
+---
+description:please don't create code before i asking you about it because i looking for improve with your hand and no for copy pasting 
+globs:
+alwaysApply: true
+---

@@ -1,8 +1,7 @@
 // src/app/myOrders/components/StatisticBar.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import {useOrderStore} from "@/stores/orderStore";
+import { useEffect, useState } from 'react'
 
 export default function StatisticBar() {
     // State for the current time string

@@ -1,8 +1,8 @@
 "use client"
-import Header from "@/app/form/components/Header";
-import StatisticBar from "@/app/myOrders/components/StatisticBar";
-import Sidebar from "@/app/form/components/Sidebar";
-import OrdersDemo from "@/app/myOrders/components/CurrentOrders";
+import Header from "@/app/form/components/Header"
+import Sidebar from "@/app/form/components/Sidebar"
+import OrdersDemo from "@/app/myOrders/components/CurrentOrders"
+import StatisticBar from "@/app/myOrders/components/StatisticBar"
 
 export default function MyOrders() {
     return (
@@ -20,6 +20,7 @@ export default function MyOrders() {
                     <div className="p-6">
                         {/* Statistics Bar */}
                         <StatisticBar />
+               
                         <OrdersDemo/>
                     </div>
                 </div>

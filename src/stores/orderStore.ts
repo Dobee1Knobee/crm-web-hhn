@@ -213,6 +213,7 @@ export interface OrderState extends BufferState {
         team: string;
         manager_id: string;
     } | null;
+   
 
     // ===== 🆕 WEBSOCKET ПОЛЯ =====
     socket: any | null;
@@ -228,7 +229,7 @@ export interface OrderState extends BufferState {
         timestamp: Date;
         read: boolean;
     }>;
-
+    noteOfClaimedOrder: NoteOfClaimedOrder[];
     // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
     addressFitNotification: {
         isVisible: boolean;
@@ -243,7 +244,7 @@ export interface OrderState extends BufferState {
             connectSocket: () => void;
 
             // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
-            showAddressFitNotification: (message: string, nearestTeam: string, address: string) => void;
+            showAddressFitNotification: (message: string, nearestTeam: string, address: string, orderId?: string, phoneNumber?: string) => void;
             hideAddressFitNotification: () => void;
     disconnectSocket: () => void;
     markNotificationAsRead: (notificationId: number) => void;
@@ -329,11 +330,30 @@ export interface OrderState extends BufferState {
     updateOrder: (leadId: string | undefined) => void;
     getByLeadID: (leadId: string) => Promise<Order | null>;
     patchFormData: (patch: Partial<FormData>) => void;
-
+    
+    //Действия заказом claimed из телеграма 
+    bindOrderToForm: (form_id:string,orderId: string) => Promise<boolean>;
+    getNoteOfClaimedOrder: (form_id: string) => Promise<NoteOfClaimedOrder | undefined>;
     // ===== ФУНКЦИИ ПОИСКА =====
     searchOrders: (query: string) => Promise<void>;
     clearSearchResults: () => void;
     viewNotMyOrder: (orderId: string) => Promise<void>;
+}
+
+// ===== КАСТОМНЫЕ ИНТЕРФЕЙСЫ =====
+export interface NoteOfClaimedOrder {
+    telephone: string;
+    name: string;
+    text: {
+        name: string;
+        size: string;
+        mountType: string;
+        surfaceType: string;
+        wires: string;
+        addons: string;
+    };
+    city: string;
+    state: string;
 }
 
 // ===== НАЧАЛЬНЫЕ ДАННЫЕ =====
@@ -395,6 +415,9 @@ export const useOrderStore = create<OrderState>()(
             isLoadingBuffer: false,
             bufferError: null,
 
+            // =====  НОТЫ ЗАКАЗОВ =====
+            noteOfClaimedOrder:sessionStorage.getItem('noteOfClaimedOrder') ? JSON.parse(sessionStorage.getItem('noteOfClaimedOrder') || '[]') : [],
+
             // ===== ПОИСК =====
             searchResults: null,
             isSearching: false,
@@ -417,45 +440,7 @@ export const useOrderStore = create<OrderState>()(
                 set({ addressFitNotification: null }, false, 'hideAddressFitNotification');
             },
 
-            // Передача заказа в буфер другой команды
-            transferOrderToBuffer: async (orderId: string, targetTeam: string, note?: string) => {
-                const { currentUser } = get();
-                if (!currentUser) {
-                    throw new Error('Пользователь не авторизован');
-                }
 
-                try {
-                    const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/orders/transfer', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            order_id: orderId,
-                            from_team: currentUser.team,
-                            to_team: targetTeam,
-                            from_user: currentUser.userAt,
-                            note: note || `Автоматическая передача: адрес не подходит для команды ${currentUser.team}`
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Ошибка передачи: ${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    console.log('Заказ успешно передан в буфер:', result);
-                    
-                    // Обновляем локальное состояние
-                    get().fetchOrders();
-                    get().fetchBufferOrders();
-                    
-                    return result;
-                } catch (error) {
-                    console.error('Ошибка передачи заказа в буфер:', error);
-                    throw error;
-                }
-            },
 
             // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
             connectSocket: () => {
@@ -523,7 +508,7 @@ export const useOrderStore = create<OrderState>()(
                 });
 
                 // 🎯 Таргетные уведомления для конкретного менеджера
-                socket.on('target-notification', (data: any) => {
+                socket.on('target-notification', async(data: any) => {
                     try {
                         const notification = {
                             id: Date.now(),
@@ -536,6 +521,14 @@ export const useOrderStore = create<OrderState>()(
                             timestamp: new Date(),
                             read: false
                         };
+                        const noteData = await get().getNoteOfClaimedOrder(data?.form_id);
+                        if (noteData) {
+                            set(state => ({
+                                noteOfClaimedOrder: [...state.noteOfClaimedOrder, noteData]
+                            }));
+                           
+                        }
+                    
 
                         // UI тост
                         if (data?.title || data?.message) {
@@ -705,6 +698,34 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
 
+            //метод привязки заказа после claim к форме после создания 
+            bindOrderToForm: async (form_id:string,orderId: string) => {
+                const { currentUser } = get();
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return false;
+                }
+                try {
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/bind-order-to-form/${form_id}/${orderId}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                        }
+                    );
+                    if (!response.ok) {
+                        throw new Error('Не удалось привязать заказ к форме');
+                    }
+                    const result = await response.json();
+                    toast.success('Order successfully bound to telegram form');
+                    return true;
+                }
+                catch (error) {
+                    console.error('Ошибка при привязке заказа к форме:', error);
+                    toast.error('Не удалось привязать заказ к форме');
+                    return false;
+                }
+            },
             claimBufferOrder: async (orderId: string,team?:string) => {
                 const { currentUser } = get();
 
@@ -781,6 +802,50 @@ export const useOrderStore = create<OrderState>()(
                     console.error('Ошибка перевода в буфер:', error);
                     toast.error(error instanceof Error ? error.message : 'Не удалось перевести заказ');
                     return false;
+                }
+            },
+            getNoteOfClaimedOrder: async (form_id: string): Promise<NoteOfClaimedOrder | undefined> => {
+                try {
+                    console.log('🔍 Fetching form data for form_id:', form_id);
+                    
+                    const response = await fetch(
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/order-form/get/${form_id}`,
+                        {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' },
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch form notes');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('📡 Raw API response:', data); // ← ДОБАВЬТЕ ЭТО
+                    
+                    // Преобразуем данные API в нужный формат
+                    const noteData: NoteOfClaimedOrder = {
+                        telephone: data.form?.telephone || '',      
+                        name: data.form?.client_name || '',           
+                        text: {
+                            name: data.form?.text?.name || '',         
+                            size: data.form?.text?.size || '',         
+                            mountType: data.form?.text?.['mountType'] || '', 
+                            surfaceType: data.form?.text?.['surfaceType'] || '', 
+                            wires: data.form?.text?.['wires'] || '',     
+                            addons: data.form?.text?.['addons'] || ''    
+                        },
+                        city: data.form?.city || '',                    
+                        state: data.form?.state || ''                  
+                    };
+                    
+                    console.log('✅ Transformed noteData:', noteData); // ← И ЭТО
+                    //TODO: реализовать кастомный буффер каждому менеджеру по текущим не обработаннным заказам
+                    sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(noteData));
+                    return noteData;
+                } catch (error) {
+                    console.error('Error fetching form notes:', error);
+                    return undefined;
                 }
             },
 
