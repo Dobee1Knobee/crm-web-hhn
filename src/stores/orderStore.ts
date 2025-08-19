@@ -197,8 +197,7 @@ export interface OrderState extends BufferState {
     ordersPerPage: number;
 
     // ===== TELEGRAM =====
-    currentTelegramOrder: TelegramOrder | null;
-    isWorkingOnTelegramOrder: boolean;
+    formIdClaimedOrderInProcess: string | null;
 
     // ===== UI =====
     isLoading: boolean;
@@ -233,17 +232,21 @@ export interface OrderState extends BufferState {
     
     // ===== ДЕЙСТВИЯ С ЗАКЛЕЙМЕННЫМИ ЗАКАЗАМИ =====
     clearClaimedOrders: () => void;
+    removeClaimedOrder: (formId: string) => void;
     syncClaimedOrders: () => NoteOfClaimedOrder[];
     
-    // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
-    addressFitNotification: {
-        isVisible: boolean;
-        message: string;
-        nearestTeam: string;
-        address: string;
-        orderId?: string; // ID текущего заказа для передачи в буфер
-        phoneNumber?: string; // Номер телефона для проверки возможности создания заказа
-    } | null;
+                // ===== 🆕 АДРЕСНЫЕ УВЕДОМЛЕНИЯ =====
+            addressFitNotification: {
+                isVisible: boolean;
+                message: string;
+                nearestTeam: string;
+                address: string;
+                orderId?: string; // ID текущего заказа для передачи в буфер
+                phoneNumber?: string; // Номер телефона для проверки возможности создания заказа
+            } | null;
+
+            // ===== 🆕 СОБЫТИЯ ДЛЯ НАВИГАЦИИ =====
+            shouldRedirectToMyOrders: boolean;
 
                 // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
             connectSocket: () => void;
@@ -348,6 +351,7 @@ export interface OrderState extends BufferState {
 // ===== КАСТОМНЫЕ ИНТЕРФЕЙСЫ =====
 export interface NoteOfClaimedOrder {
     telephone: string;
+    form_id: string;
     name: string;
     text: {
         size: string;
@@ -395,6 +399,8 @@ export const useOrderStore = create<OrderState>()(
             isSaving: false,
             error: null,
             currentUser: null,
+            formIdClaimedOrderInProcess: null,
+            shouldRedirectToMyOrders: false,
 
             // ===== ПАГИНАЦИЯ =====
             pagination: null,
@@ -501,11 +507,18 @@ export const useOrderStore = create<OrderState>()(
                     reconnection: true,
                     reconnectionAttempts: 10,
                     reconnectionDelay: 1000,
+                    timeout: 20000, // 20 секунд таймаут
+                    forceNew: false, // Переиспользовать соединение
                 });
 
                 // Обработчики событий
                 socket.on('connect', () => {
                     console.log('✅ WebSocket подключен!', socket.id);
+                    console.log('🔗 Connection details:', {
+                        url: SOCKET_URL,
+                        transport: socket.io.engine.transport.name,
+                        readyState: socket.readyState
+                    });
                     set({ isSocketConnected: true });
 
                     socket.emit('join-team', {
@@ -618,13 +631,30 @@ export const useOrderStore = create<OrderState>()(
                     get().refreshBuffer();
                 });
 
-                socket.on('disconnect', () => {
-                    console.log('⚠ WebSocket отключен');
-                    set({ isSocketConnected: false });
-                });
+
 
                 socket.on('error', (error: any) => {
                     console.error('WebSocket ошибка:', error);
+                });
+
+                // 🔄 Добавляем heartbeat для поддержания соединения
+                const heartbeatInterval = setInterval(() => {
+                    if (socket.connected) {
+                        socket.emit('keep-alive');
+                        console.log('💓 Keep-alive sent to server');
+                    }
+                }, 30000); // Каждые 30 секунд
+
+                // Обработчик keep-alive-ack от сервера
+                socket.on('keep-alive-ack', () => {
+                    console.log('💓 Keep-alive acknowledged by server');
+                });
+
+                // Очистка интервала при отключении
+                socket.on('disconnect', () => {
+                    clearInterval(heartbeatInterval);
+                    console.log('⚠ WebSocket отключен');
+                    set({ isSocketConnected: false });
                 });
 
                 // Сохраняем socket в store
@@ -737,7 +767,7 @@ export const useOrderStore = create<OrderState>()(
                 }
                 try {
                     const response = await fetch(
-                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/bind-order-to-form/${form_id}/${orderId}`,
+                        `https://bot-crm-backend-756832582185.us-central1.run.app/api/order-form/bind/${form_id}/${orderId}`,
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -745,6 +775,7 @@ export const useOrderStore = create<OrderState>()(
                     );
                     if (!response.ok) {
                         throw new Error('Не удалось привязать заказ к форме');
+                        toast.error('Unsuccess bind order to form, try again');
                     }
                     const result = await response.json();
                     toast.success('Order successfully bound to telegram form');
@@ -841,6 +872,20 @@ export const useOrderStore = create<OrderState>()(
                 sessionStorage.removeItem('noteOfClaimedOrder');
             },
 
+            // Удаление конкретного заклейменного заказа
+            removeClaimedOrder: (formId: string) => {
+                console.log('🧹 Removing specific claimed order:', formId);
+                const currentClaimedOrders = get().noteOfClaimedOrder;
+                const updatedClaimedOrders = currentClaimedOrders.filter(
+                    order => order.form_id !== formId
+                );
+                
+                set({ noteOfClaimedOrder: updatedClaimedOrders });
+                sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(updatedClaimedOrders));
+                
+                console.log('✅ Removed claimed order from notes');
+            },
+
             // Синхронизация store с sessionStorage
             syncClaimedOrders: () => {
                 try {
@@ -889,7 +934,8 @@ export const useOrderStore = create<OrderState>()(
                     // Преобразуем данные API в нужный формат
                     const noteData: NoteOfClaimedOrder = {
                         telephone: data.form?.telephone || '',      
-                        name: data.form?.client_name || '',           
+                        name: data.form?.client_name || '',  
+                        form_id: data.form?._id || '',         
                         text: {        
                             size: data.form?.text?.size || '',         
                             mountType: data.form?.text?.['mountType'] || '', 
@@ -1261,8 +1307,6 @@ export const useOrderStore = create<OrderState>()(
                     formData: initialFormData,
                     selectedServices: [],
                     currentOrder: null,
-                    currentTelegramOrder: null,
-                    isWorkingOnTelegramOrder: false,
                     error: null,
                     addressFitNotification: null // Сбрасываем адресные уведомления
                 }, false, 'resetForm');
@@ -1516,6 +1560,39 @@ export const useOrderStore = create<OrderState>()(
                         order_id: createdOrder.order_id
                     });
 
+                    // 🔗 Привязываем заказ к форме если есть formIdClaimedOrderInProcess
+                    const { formIdClaimedOrderInProcess } = get();
+                    console.log('🔍 createOrder - formIdClaimedOrderInProcess:', formIdClaimedOrderInProcess);
+                    console.log('🔍 createOrder - typeof formIdClaimedOrderInProcess:', typeof formIdClaimedOrderInProcess);
+                    
+                    if (formIdClaimedOrderInProcess) {
+                        console.log('🔗 Binding order to telegram form:', formIdClaimedOrderInProcess);
+                        
+                        try {
+                            // Привязываем заказ к форме
+                            const bindResult = await get().bindOrderToForm(formIdClaimedOrderInProcess, createdOrder.leadId);
+                            
+                            if (bindResult) {
+                                console.log('✅ Order successfully bound to telegram form');
+                                toast.success('Order bound to telegram form');
+                                
+                                // Удаляем заказ из claimed notes
+                                get().removeClaimedOrder(formIdClaimedOrderInProcess);
+                                
+                                // Очищаем флаг
+                                set({ formIdClaimedOrderInProcess: null });
+                                
+                                console.log('🧹 Removed claimed order from notes');
+                            } else {
+                                console.error('❌ Failed to bind order to telegram form');
+                                toast.error('Failed to bind order to telegram form');
+                            }
+                        } catch (error) {
+                            console.error('❌ Error binding order to telegram form:', error);
+                            toast.error('Error binding order to telegram form');
+                        }
+                    }
+
                     toast.success(`Successfully created order ${createdOrder.leadId}`);
                     set(state => ({
                         currentOrder: createdOrder,
@@ -1523,8 +1600,25 @@ export const useOrderStore = create<OrderState>()(
                         isSaving: false
                     }));
 
-                    // НЕ сбрасываем форму, если заказ создается для передачи в буфер
-                    // get().resetForm();
+                    // 🔄 Автоматический ресет формы и переход на myOrders через 3 секунды
+                    setTimeout(() => {
+                        console.log('🔄 Auto-resetting form and redirecting to myOrders');
+                        
+                        // Сбрасываем форму
+                        get().resetForm();
+                        
+                        // Очищаем claimed order флаг если был
+                        if (get().formIdClaimedOrderInProcess) {
+                            set({ formIdClaimedOrderInProcess: null });
+                        }
+                        
+                
+                        
+                        // Устанавливаем флаг для перехода
+                        set({ shouldRedirectToMyOrders: true });
+                        
+                    }, 3000); // 3 секунды задержки
+
                     return createdOrder;
 
                 } catch (error) {

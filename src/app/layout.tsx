@@ -1,10 +1,10 @@
 // src/app/layout.tsx
-import AuthProvider from "@/app/auth/AuthProvider";
-import { AddressFitNotification } from "@/components/AddressFitNotification";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import PerformanceMonitor from "@/components/PerformanceMonitor";
-import { Inter } from 'next/font/google';
-import { Toaster } from "react-hot-toast";
+import AuthProvider from "@/app/auth/AuthProvider"
+import { AddressFitNotification } from "@/components/AddressFitNotification"
+import ErrorBoundary from "@/components/ErrorBoundary"
+import PerformanceMonitor from "@/components/PerformanceMonitor"
+import { Inter } from 'next/font/google'
+import { Toaster } from "react-hot-toast"
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,6 +48,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         wordBreak: 'break-word',
                     },
 
+                    // Замените существующий тост в target-notification на этот:
+                    custom: {
+                        duration: 4000,
+                        style: {
+                            background: '#3b82f6', // blue-500
+                            color: '#ffffff',
+                            border: '1px solid #2563eb', // blue-600
+                            fontWeight: '500',
+                            borderRadius: '12px',
+                            padding: '16px 20px',
+                            fontSize: '14px',
+                            boxShadow: '0 10px 25px rgba(59, 130, 246, 0.3)',
+                        },
+                        iconTheme: {
+                            primary: '#ffffff',
+                            secondary: '#3b82f6',
+                        },
+                    },
                     // ✅ Успешные операции (зеленый)
                     success: {
                         duration: 3000,
@@ -90,20 +108,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         iconTheme: {
                             primary: '#ffffff',
                             secondary: '#f59e0b',
-                        },
-                    },
-
-                    // 📋 Кастомные уведомления (синий - для буфера)
-                    custom: {
-                        duration: 7000,
-                        style: {
-                            background: '#3b82f6', // blue-500
-                            color: '#ffffff',
-                            border: '1px solid #2563eb', // blue-600
-                            borderRadius: '10px',
-                            fontWeight: '500',
-                            padding: '16px',
-                            boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3), 0 4px 6px -2px rgba(59, 130, 246, 0.2)',
                         },
                     },
                 }}

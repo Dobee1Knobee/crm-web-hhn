@@ -1,17 +1,16 @@
 // LoginForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ
 "use client";
-import "@/app/global.css";
-import { useUserByAt } from "@/hooks/useUserByAt";
-import { OrderStatus } from "@/types/api";
-import Header from "@/app/form/components/Header";
-import StatusPills from "@/app/form/components/StatusPills";
-import OrderForm from "@/app/form/components/OrderForm/OrderForm";
-import Sidebar from "@/app/form/components/Sidebar";
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core";
-import { useState, useEffect } from "react";
-import { DropArea } from "@/app/form/components/DropArea";
-import { useOrderStore } from "@/stores/orderStore";
-import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm";
+import { DropArea } from "@/app/form/components/DropArea"
+import Header from "@/app/form/components/Header"
+import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm"
+import OrderForm from "@/app/form/components/OrderForm/OrderForm"
+import Sidebar from "@/app/form/components/Sidebar"
+import StatusPills from "@/app/form/components/StatusPills"
+import "@/app/global.css"
+import { useUserByAt } from "@/hooks/useUserByAt"
+import { useOrderStore } from "@/stores/orderStore"
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core"
+import { useState } from "react"
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -47,15 +46,13 @@ export default function Home() {
         getTotalPrice,
         setCurrentUser,
         formData,
-        isWorkingOnTelegramOrder
+        
     } = useOrderStore();
 
     // Состояние только для drag & drop UI
     const [activeService, setActiveService] = useState<ServiceItem | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
-    useEffect(() => {
-        resetForm();
-    }, [currentLeadID]);
+
     // Устанавливаем пользователя в store при загрузке
 
 

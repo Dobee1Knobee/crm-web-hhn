@@ -1,7 +1,7 @@
 // src/app/form/components/Sidebar.tsx
 'use client';
 
-import { useOrderStore } from '@/stores/orderStore'
+import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore'
 import Order from "@/types/formDataType"
 import {
     Calendar,
@@ -45,6 +45,7 @@ export default function Sidebar() {
         clearSearchResults,
         viewNotMyOrder,
         currentUser,
+        formData,
         getByLeadID // Для загрузки заказа
     } = useOrderStore();
     const bufferCount = useOrderStore(state => state.bufferStats.totalCount);
@@ -109,6 +110,32 @@ export default function Sidebar() {
         };
     }, [searchQuery]);
 
+    // Обработка клика по заклеймленному заказу
+    const handleTakeToWork = (order: NoteOfClaimedOrder) => {
+        console.log('🔍 handleTakeToWork - order:', order);
+        console.log('🔍 handleTakeToWork - order.form_id:', order.form_id);
+        
+        // 1. Обновляем store
+        useOrderStore.setState({formIdClaimedOrderInProcess: order.form_id})
+        console.log('🔍 handleTakeToWork - set formIdClaimedOrderInProcess:', order.form_id);
+
+        useOrderStore.setState({
+            formData: {
+                ...useOrderStore.getState().formData,
+                customerName: order.name,
+                phoneNumber: order.telephone,
+                city: order.city,
+            }
+        });
+        
+        console.log('🔍 handleTakeToWork - formData updated');
+        
+        // 2. Ждем обновления store
+        setTimeout(() => {
+            router.push('/form');
+        }, 100);
+    };
+
     // Navigation handler
     const handleClick = (tab: 'new-order' | 'buffer' | 'my-orders' | 'search') => {
         setActiveTab(tab);
@@ -147,7 +174,7 @@ export default function Sidebar() {
         setSelectedNotMyOrder(order);
         setShowConfidentialModal(true);
     };
-
+    //TODO:подключить счетчик 
     // Подтверждение просмотра чужого заказа
     const handleConfirmView = async () => {
         console.log('🔍 handleConfirmView called');
@@ -208,7 +235,7 @@ export default function Sidebar() {
                                 {noteOfClaimedOrder && Array.isArray(noteOfClaimedOrder) && noteOfClaimedOrder.length > 0 ? (
                                     <div className="space-y-3">
                                         {noteOfClaimedOrder.map(order => (
-                                            <ClaimedOrderCard key={order.telephone} order={order} onTakeToWork={() => {}} />
+                                            <ClaimedOrderCard key={order.telephone} order={order} onTakeToWork={() => {handleTakeToWork(order)}} />
                                         ))}
                                     </div>
                                 ) : (

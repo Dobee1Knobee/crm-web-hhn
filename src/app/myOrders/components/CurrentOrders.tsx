@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { OrderStatus } from "@/types/api";
-import OrderCard from './OrderCard';
-import { useOrderStore } from "@/stores/orderStore";
-import { TransferStatus } from '@/types/formDataType';
-import { FileText, Folder, RefreshCw, Search, X } from "lucide-react";
+import { useOrderStore } from "@/stores/orderStore"
+import { OrderStatus } from "@/types/api"
+import { Folder, RefreshCw, Search, X } from "lucide-react"
+import React, { useEffect, useState } from 'react'
+import OrderCard from './OrderCard'
 
 export default function OrdersDemo() {
     const {
@@ -169,7 +168,7 @@ export default function OrdersDemo() {
                                 <input
                                     type="text"
                                     placeholder="Search by ID, phone, address, or ZIP..."
-                                    className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm w-80"
+                                    className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm w-96"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     onKeyPress={handleKeyPress}
