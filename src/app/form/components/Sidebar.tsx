@@ -1,8 +1,9 @@
 // src/app/form/components/Sidebar.tsx
 'use client';
 
-import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore'
-import Order from "@/types/formDataType"
+import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore';
+import Order from "@/types/formDataType";
+import { getSessionStorage } from '@/utils/storage';
 import {
     Calendar,
     ClipboardList,
@@ -14,11 +15,11 @@ import {
     Plus,
     Search,
     User
-} from "lucide-react"
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import ClaimedOrderCard from './ClaimedOrderCard'
-import ConfidentialViewModal from './ConfidentialViewModal'
+} from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import ClaimedOrderCard from './ClaimedOrderCard';
+import ConfidentialViewModal from './ConfidentialViewModal';
 
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -61,7 +62,7 @@ export default function Sidebar() {
     console.log('🔍 Sidebar - Type:', typeof noteOfClaimedOrder);
     console.log('🔍 Sidebar - Is Array:', Array.isArray(noteOfClaimedOrder));
     console.log('🔍 Sidebar - Length:', noteOfClaimedOrder?.length);
-    console.log('🔍 Sidebar - sessionStorage:', sessionStorage.getItem('noteOfClaimedOrder'));
+    console.log('🔍 Sidebar - sessionStorage:', getSessionStorage('noteOfClaimedOrder'));
 
 
     // Загрузка активного таба

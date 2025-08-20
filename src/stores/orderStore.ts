@@ -11,6 +11,7 @@ import {
 } from '@/types/formDataType'
 import { mapApiServicesToSelected } from "@/utils/mapApiServicesToSelected"
 import { mapOrderToFormPatch } from "@/utils/mapOrderToForm"
+import { getSessionStorageJSON, removeSessionStorage, setSessionStorageJSON } from "@/utils/storage"
 import toast from "react-hot-toast"
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
@@ -428,21 +429,16 @@ export const useOrderStore = create<OrderState>()(
             // =====  НОТЫ ЗАКАЗОВ =====
             noteOfClaimedOrder: (() => {
                 try {
-                    const stored = sessionStorage.getItem('noteOfClaimedOrder');
-                    if (stored) {
-                        const parsed = JSON.parse(stored);
-                        console.log('🔍 Store init - Loaded from sessionStorage:', parsed);
-                        
-                        // Если это одиночный объект, преобразуем в массив
-                        if (!Array.isArray(parsed)) {
-                            console.log('🔍 Store init - Converting single object to array');
-                            return [parsed];
-                        }
-                        
-                        return parsed;
+                    const stored = getSessionStorageJSON('noteOfClaimedOrder', []);
+                    console.log('🔍 Store init - Loaded from sessionStorage:', stored);
+                    
+                    // Если это одиночный объект, преобразуем в массив
+                    if (stored && !Array.isArray(stored)) {
+                        console.log('🔍 Store init - Converting single object to array');
+                        return [stored];
                     }
-                    console.log('🔍 Store init - No sessionStorage data, using empty array');
-                    return [];
+                    
+                    return stored || [];
                 } catch (error) {
                     console.error('🔍 Store init - Error parsing sessionStorage:', error);
                     return [];
@@ -474,25 +470,50 @@ export const useOrderStore = create<OrderState>()(
 
 
             // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
-            connectSocket: () => {
-                const state = get();
-                const { currentUser } = state;
-
-                // Проверяем, есть ли пользователь
-                if (!currentUser || !currentUser.team || !currentUser.userName) {
+            connectSocket: async () => {
+                const { currentUser, socket: existingSocket } = get();
+                if (get().isSocketConnected) {
+                    console.log('⚠ Уже подключен или идет подключение');
+                    return;
+                }
+            
+                if (!currentUser?.userId || !currentUser?.team || !currentUser?.userName) {
+                    console.log('⚠ Нет данных пользователя для WebSocket');
+                    return;
+                }
+            
+                if (!currentUser?.userId || !currentUser?.team || !currentUser?.userName) {
                     console.log('⚠ Нет данных пользователя для WebSocket');
                     return;
                 }
 
-                // Если уже подключены - не подключаемся снова
-                if (state.socket && state.isSocketConnected) {
+                if (existingSocket?.connected) {
                     console.log('⚡ WebSocket уже подключен');
                     return;
                 }
 
+                // Проверяем доступность сервера перед подключением
+                try {
+                    const serverCheck = await fetch(`${SOCKET_URL}/health`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache'
+                    });
+                    
+                    if (!serverCheck.ok) {
+                        throw new Error(`Сервер недоступен: ${serverCheck.status}`);
+                    }
+                    
+                    console.log('✅ Сервер доступен, подключаемся к WebSocket');
+                } catch (error) {
+                    console.error('❌ Сервер недоступен:', error);
+                    toast.error('Сервер временно недоступен. Попробуйте позже.');
+                    return;
+                }
+
                 // Закрываем предыдущее соединение если есть
-                if (state.socket) {
-                    state.socket.disconnect();
+                if (existingSocket) {
+                    existingSocket.disconnect();
                 }
 
                 console.log(`🔌 Подключаемся как ${currentUser.userName} к команде ${currentUser.team}`);
@@ -502,13 +523,21 @@ export const useOrderStore = create<OrderState>()(
                 console.log('🔗 SOCKET_URL =', SOCKET_URL);
 
                 const socket = io(SOCKET_URL, {
-                    transports: ['websocket'],
+                    transports: ['websocket', 'polling'],
                     path: '/socket.io',
                     reconnection: true,
-                    reconnectionAttempts: 10,
-                    reconnectionDelay: 1000,
-                    timeout: 20000, // 20 секунд таймаут
-                    forceNew: false, // Переиспользовать соединение
+                    reconnectionAttempts: 5,        // Уменьшаем с 20 до 5
+                    reconnectionDelay: 5000,        // 5 секунд вместо 2
+                    reconnectionDelayMax: 60000,    // 1 минута вместо 30 секундсекунд
+                    timeout: 60000,                 // Увеличиваем с 30 до 60 секунд
+                    forceNew: false,
+                    upgrade: true,
+                    rememberUpgrade: true,
+                    autoConnect: true,
+                    query: {
+                        client: 'web',
+                        version: '1.0.0'
+                    }
                 });
 
                 // Обработчики событий
@@ -517,17 +546,32 @@ export const useOrderStore = create<OrderState>()(
                     console.log('🔗 Connection details:', {
                         url: SOCKET_URL,
                         transport: socket.io.engine.transport.name,
-                        readyState: socket.readyState
+                        readyState: socket.readyState,
+                        connected: socket.connected,
+                        disconnected: socket.disconnected
+                    });
+                    console.log('👤 Current user data:', {
+                        userId: currentUser.userId,
+                        userName: currentUser.userName,
+                        userAt: currentUser.userAt,
+                        team: currentUser.team,
+                        manager_id: currentUser.manager_id
                     });
                     set({ isSocketConnected: true });
 
                     socket.emit('join-team', {
                         team: currentUser.team,
                         username: currentUser.userName,
-                        at:currentUser.userAt
+                        at: currentUser.userAt
                     });
 
                     // Регистрируем менеджера для таргетных уведомлений
+                    console.log('📝 Регистрируем менеджера для таргетных уведомлений:', {
+                        manager_id: currentUser.manager_id,
+                        at: currentUser.userAt,
+                        user_id: currentUser.userId,
+                        socket_id: socket.id
+                    });
                     socket.emit('register-manager', {
                         manager_id: currentUser.manager_id,
                         at: currentUser.userAt,
@@ -539,6 +583,46 @@ export const useOrderStore = create<OrderState>()(
                     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
                         try { Notification.requestPermission(); } catch {}
                     }
+                });
+
+                // Добавляем обработчик connect_error
+                socket.on('connect_error', (error: any) => {
+                    console.error('❌ Ошибка подключения WebSocket:', {
+                        message: error.message,
+                        description: error.description,
+                        context: error.context,
+                        type: error.type,
+                        url: SOCKET_URL
+                    });
+                    
+                    // Показываем пользователю информацию об ошибке
+                    toast.error(`Ошибка подключения: ${error.message || 'Не удалось подключиться к серверу'}`);
+                    
+                    set({ isSocketConnected: false });
+                });
+
+                // Добавляем обработчик reconnect
+                socket.on('reconnect', (attemptNumber: number) => {
+                    console.log(`🔄 WebSocket переподключен после ${attemptNumber} попыток`);
+                    toast.success('Соединение восстановлено');
+                    set({ isSocketConnected: true });
+                });
+
+                // Добавляем обработчик reconnect_attempt
+                socket.on('reconnect_attempt', (attemptNumber: number) => {
+                    console.log(`🔄 Попытка переподключения #${attemptNumber}`);
+                });
+
+                // Добавляем обработчик reconnect_error
+                socket.on('reconnect_error', (error: any) => {
+                    console.error('❌ Ошибка переподключения:', error);
+                });
+
+                // Добавляем обработчик reconnect_failed
+                socket.on('reconnect_failed', () => {
+                    console.error('❌ Не удалось переподключиться после всех попыток');
+                    toast.error('Не удалось восстановить соединение. Проверьте интернет и попробуйте обновить страницу.');
+                    set({ isSocketConnected: false });
                 });
 
                 socket.on('team-joined', (data: any) => {
@@ -568,7 +652,7 @@ export const useOrderStore = create<OrderState>()(
                             
                             // Сохраняем в sessionStorage
                             const updatedOrders = [...get().noteOfClaimedOrder, noteData];
-                            sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(updatedOrders));
+                            setSessionStorageJSON('noteOfClaimedOrder', updatedOrders);
                             console.log('💾 Saved to sessionStorage:', updatedOrders);
                         }
                     
@@ -638,24 +722,57 @@ export const useOrderStore = create<OrderState>()(
                 });
 
                 // 🔄 Добавляем heartbeat для поддержания соединения
-                const heartbeatInterval = setInterval(() => {
-                    if (socket.connected) {
-                        socket.emit('keep-alive');
-                        console.log('💓 Keep-alive sent to server');
-                    }
-                }, 30000); // Каждые 30 секунд
-
+           // 🔄 Улучшенный heartbeat для поддержания соединения
+            const heartbeatInterval = setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('keep-alive');
+                    console.log('�� Keep-alive sent to server');
+                } else {
+                    console.log('⚠ Socket не подключен, пропускаем heartbeat');
+                }
+          }, 120000); 
                 // Обработчик keep-alive-ack от сервера
-                socket.on('keep-alive-ack', () => {
-                    console.log('💓 Keep-alive acknowledged by server');
+                            socket.on('keep-alive-ack', () => {
+                                console.log('💓 Keep-alive acknowledged by server');
+                            });
+            // Увеличиваем таймаут для heartbeat
+            const heartbeatTimeout = setTimeout(() => {
+                if (socket.connected) {
+                    console.log('⚠ Keep-alive timeout, проверяем соединение');
+                    socket.emit('ping');
+                }
+            }, 30000); // Увеличиваем с 10 до 30 секунд
+
+         
+
+                // Добавляем обработчик keep-alive timeout
+             
+
+                // Обработчик pong от сервера
+                socket.on('pong', () => {
+                    console.log('🏓 Pong received from server');
+                    clearTimeout(heartbeatTimeout);
                 });
 
-                // Очистка интервала при отключении
-                socket.on('disconnect', () => {
-                    clearInterval(heartbeatInterval);
-                    console.log('⚠ WebSocket отключен');
-                    set({ isSocketConnected: false });
-                });
+                        socket.on('disconnect', (reason: string) => {
+                clearInterval(heartbeatInterval);
+                clearTimeout(heartbeatTimeout);
+                console.log('⚠ WebSocket отключен, причина:', reason);
+                set({ isSocketConnected: false });
+                
+                // Более информативные сообщения
+                if (reason === 'io server disconnect') {
+                    toast.error('Сервер разорвал соединение');
+                } else if (reason === 'io client disconnect') {
+                    console.log('Клиент разорвал соединение');
+                } else if (reason === 'transport close') {
+                    toast.error('Соединение потеряно. Попытка переподключения...');
+                } else if (reason === 'ping timeout') {
+                    toast.error('Таймаут соединения. Попытка переподключения...');
+                } else if (reason === 'server namespace disconnect') {
+                    toast.error('Соединение заменено новым');
+                }
+            });
 
                 // Сохраняем socket в store
                 set({ socket });
@@ -869,7 +986,7 @@ export const useOrderStore = create<OrderState>()(
             clearClaimedOrders: () => {
                 console.log('🧹 Clearing claimed orders');
                 set({ noteOfClaimedOrder: [] });
-                sessionStorage.removeItem('noteOfClaimedOrder');
+                removeSessionStorage('noteOfClaimedOrder');
             },
 
             // Удаление конкретного заклейменного заказа
@@ -881,7 +998,7 @@ export const useOrderStore = create<OrderState>()(
                 );
                 
                 set({ noteOfClaimedOrder: updatedClaimedOrders });
-                sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(updatedClaimedOrders));
+                setSessionStorageJSON('noteOfClaimedOrder', updatedClaimedOrders);
                 
                 console.log('✅ Removed claimed order from notes');
             },
@@ -889,22 +1006,21 @@ export const useOrderStore = create<OrderState>()(
             // Синхронизация store с sessionStorage
             syncClaimedOrders: () => {
                 try {
-                    const stored = sessionStorage.getItem('noteOfClaimedOrder');
-                    if (stored) {
-                        const parsed = JSON.parse(stored);
+                    const stored = getSessionStorageJSON('noteOfClaimedOrder', []);
+                    if (stored && stored.length > 0) {
                         let ordersArray: NoteOfClaimedOrder[] = [];
                         
-                        if (Array.isArray(parsed)) {
-                            ordersArray = parsed;
-                        } else if (parsed) {
-                            ordersArray = [parsed];
+                        if (Array.isArray(stored)) {
+                            ordersArray = stored;
+                        } else if (stored) {
+                            ordersArray = [stored];
                         }
                         
                         console.log('🔄 Syncing store with sessionStorage:', ordersArray);
                         set({ noteOfClaimedOrder: ordersArray });
                         return ordersArray;
                     }
-                    return [];
+                    return []
                 } catch (error) {
                     console.error('Error syncing claimed orders:', error);
                     return [];
@@ -951,24 +1067,18 @@ export const useOrderStore = create<OrderState>()(
                     //TODO: реализовать кастомный буффер каждому менеджеру по текущим не обработаннным заказам
                     
                     // Получаем текущие заказы из sessionStorage
-                    const currentOrders = sessionStorage.getItem('noteOfClaimedOrder');
+                    const currentOrders = getSessionStorageJSON('noteOfClaimedOrder', []);
                     let ordersArray: NoteOfClaimedOrder[] = [];
                     
-                    if (currentOrders) {
-                        try {
-                            const parsed = JSON.parse(currentOrders);
-                            ordersArray = Array.isArray(parsed) ? parsed : [parsed];
-                        } catch (error) {
-                            console.error('Error parsing current orders:', error);
-                            ordersArray = [];
-                        }
+                    if (currentOrders && currentOrders.length > 0) {
+                        ordersArray = Array.isArray(currentOrders) ? currentOrders : [currentOrders];
                     }
                     
                     // Добавляем новый заказ в массив
                     ordersArray.push(noteData);
                     
                     // Сохраняем обновленный массив
-                    sessionStorage.setItem('noteOfClaimedOrder', JSON.stringify(ordersArray));
+                    setSessionStorageJSON('noteOfClaimedOrder', ordersArray);
                     console.log('💾 Saved updated orders array to sessionStorage:', ordersArray);
                     
                     return noteData;
@@ -1258,7 +1368,7 @@ export const useOrderStore = create<OrderState>()(
 
                     const data = await res.json();
                     set({ currentUser: data.user });
-                    sessionStorage.setItem('currentUser', JSON.stringify(data.user));
+                    setSessionStorageJSON('currentUser', data.user);
 
                     // 🆕 ПОДКЛЮЧАЕМ WEBSOCKET после успешного логина
                     setTimeout(() => {
@@ -1273,20 +1383,15 @@ export const useOrderStore = create<OrderState>()(
             },
 
             initFromStorage: () => {
-                const raw = sessionStorage.getItem('currentUser');
-                if (raw) {
-                    try {
-                        const user = JSON.parse(raw);
-                        set({ currentUser: user });
+                const user = getSessionStorageJSON('currentUser', null);
+                if (user) {
+                    set({ currentUser: user });
 
-                        // 🆕 АВТОПОДКЛЮЧЕНИЕ WEBSOCKET при инициализации
-                        setTimeout(() => {
-                            get().connectSocket();
-                            get().fetchBufferOrders();
-                        }, 100);
-                    } catch {
-                        sessionStorage.removeItem('currentUser');
-                    }
+                    // 🆕 АВТОПОДКЛЮЧЕНИЕ WEBSOCKET при инициализации
+                    setTimeout(() => {
+                        get().connectSocket();
+                        get().fetchBufferOrders();
+                    }, 100);
                 }
             },
 
@@ -1763,14 +1868,14 @@ export const useOrderStore = create<OrderState>()(
                     const limit = paginationParams?.limit ?? ordersPerPage ?? 10;
 
                     if (!currentUser) {
-                        const storageUser = sessionStorage.getItem("currentUser");
+                        const storageUser = getSessionStorageJSON("currentUser", null);
                         if (storageUser) {
                             try {
-                                currentUser = JSON.parse(storageUser);
+                                currentUser = storageUser;
                                 set({ currentUser });
                             } catch (parseError) {
                                 console.error('Invalid user data in sessionStorage:', parseError);
-                                sessionStorage.removeItem("currentUser");
+                                removeSessionStorage("currentUser");
                             }
                         }
                     }
@@ -1811,7 +1916,7 @@ export const useOrderStore = create<OrderState>()(
                     // Проверяем статус ответа
                     if (!response.ok) {
                         if (response.status === 401) {
-                            sessionStorage.removeItem("currentUser");
+                            removeSessionStorage("currentUser");
                             set({ currentUser: null });
                             throw new Error('Session expired. Please login again.');
                         }
