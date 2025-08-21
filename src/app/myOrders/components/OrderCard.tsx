@@ -228,7 +228,7 @@ export default function OrderCardPretty({ order }: OrderCardProps) {
 
                         {statusOpen && !disabledAll && (
                             <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-80 overflow-auto" role="listbox">
-                                {effectiveAvailableStatuses.map((st) => (
+                                {availableStatuses.map((st) => (
                                     <button
                                         key={st}
                                         role="option"

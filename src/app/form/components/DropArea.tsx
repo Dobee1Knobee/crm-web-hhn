@@ -376,8 +376,29 @@ export const DropArea: React.FC<DropAreaProps> = ({
 
     const [editingPrice, setEditingPrice] = useState<number | null>(null);
     const [tempPrice, setTempPrice] = useState("");
+    const [isAddingCustomPrice, setIsAddingCustomPrice] = useState(false);
+    const [customTotalPrice, setCustomTotalPrice] = useState("");
 
     const total = getTotalPrice();
+
+    // Функция для получения расчетной цены (без учета кастомной)
+    const getCalculatedPrice = () => {
+        return items.reduce((total, service) => {
+            const servicePrice = service.name === "NO TV" && service.customPrice !== undefined
+                ? service.customPrice
+                : service.price;
+            const serviceTotal = servicePrice * (service.quantity || 1);
+
+            const subItemsTotal = service.subItems ?
+                service.subItems.reduce((subSum: number, subItem: ServiceItem) =>
+                    subSum + (subItem.price * (subItem.quantity || 1)), 0
+                ) : 0;
+
+            return total + serviceTotal + subItemsTotal;
+        }, 0);
+    };
+
+    const calculatedPrice = getCalculatedPrice();
 
     const startPriceEdit = (orderId: number, currentPrice: number) => {
         setEditingPrice(orderId);
@@ -398,6 +419,30 @@ export const DropArea: React.FC<DropAreaProps> = ({
     };
     const updateQuantity = (orderId: number, newQuantity: number) => {
         onUpdateQuantity?.(orderId, newQuantity);
+    };
+
+    const saveCustomTotalPrice = () => {
+        const newPrice = parseFloat(customTotalPrice);
+        if (!isNaN(newPrice) && newPrice >= 0) {
+            useOrderStore.getState().patchFormData({ custom: newPrice });
+            setIsAddingCustomPrice(false);
+            setCustomTotalPrice("");
+        }
+    };
+
+    const handleCustomPriceKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            saveCustomTotalPrice();
+        } else if (e.key === "Escape") {
+            setIsAddingCustomPrice(false);
+            setCustomTotalPrice("");
+        }
+    };
+
+    const resetCustomPrice = () => {
+        useOrderStore.getState().patchFormData({ custom: undefined });
+        setIsAddingCustomPrice(false);
+        setCustomTotalPrice("");
     };
 
     const canAcceptInMainZone = draggedItem && draggedItem.category === "main";
@@ -565,9 +610,62 @@ export const DropArea: React.FC<DropAreaProps> = ({
                 {/* Нижняя часть - Total и кнопки */}
                 <div className="flex-shrink-0 border-t border-gray-200 pt-4 mt-4">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl text-center">
-                        <div className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
-                            Total: ${total.toFixed(2)}
-                        </div>
+                        {isAddingCustomPrice ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <input
+                                    type="number"
+                                    value={customTotalPrice}
+                                    onChange={(e) => setCustomTotalPrice(e.target.value)}
+                                    onKeyPress={handleCustomPriceKeyPress}
+                                    onBlur={saveCustomTotalPrice}
+                                    placeholder={`${total.toFixed(2)}`}
+                                    className="text-xl sm:text-2xl font-bold bg-white text-blue-600 px-3 py-1 rounded-lg text-center w-32 focus:outline-none focus:ring-2 focus:ring-white"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={saveCustomTotalPrice}
+                                    className="bg-white text-blue-600 px-2 py-1 rounded text-sm hover:bg-blue-50"
+                                >
+                                    ✓
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsAddingCustomPrice(false);
+                                        setCustomTotalPrice("");
+                                    }}
+                                    className="bg-white text-red-600 px-2 py-1 rounded text-sm hover:bg-red-50"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ) : (
+                            <div 
+                                className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" 
+                                onClick={() => setIsAddingCustomPrice(true)}
+                                title="Click to set custom total price"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span>Total: ${formData.custom !== undefined ? formData.custom.toFixed(2) : total.toFixed(2)}</span>
+                                    {formData.custom !== undefined && (
+                                        <>
+                                            <span className="text-sm opacity-75">
+                                                (calc: ${calculatedPrice.toFixed(2)})
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    resetCustomPrice();
+                                                }}
+                                                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 py-1 rounded text-xs transition-all"
+                                                title="Reset to calculated price"
+                                            >
+                                                ↺
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="text-xs sm:text-sm mt-1 opacity-90 flex items-center justify-center gap-1">
                             New Order: {formData.customerName || "Unnamed Customer"}
                         </div>

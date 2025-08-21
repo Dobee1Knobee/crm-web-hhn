@@ -40,6 +40,7 @@ export interface FormData {
     masterName: string;
     description: string;
     teamId: string;
+    custom?: number;
 }
 
 // ===== ПАГИНАЦИЯ =====
@@ -379,7 +380,8 @@ const initialFormData: FormData = {
     masterId: '',
     masterName: '',
     description: '',
-    teamId: 'Init'
+    teamId: 'Init',
+    custom: undefined
 };
 
 // ===== СОЗДАНИЕ STORE =====
@@ -951,7 +953,8 @@ export const useOrderStore = create<OrderState>()(
                     );
 
                     if (!response.ok) {
-                        throw new Error('Не удалось забрать заказ');
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Не удалось забрать заказ');
                     }
 
                     // Обновляем буфер после успешного клейма
@@ -961,7 +964,8 @@ export const useOrderStore = create<OrderState>()(
 
                 } catch (error) {
                     console.error('Ошибка при заборе заказа:', error);
-                    toast.error('Не удалось забрать заказ');
+                    const errorMessage = error instanceof Error ? error.message : 'Не удалось забрать заказ';
+                    toast.error(errorMessage);
                     return false;
                 }
             },
@@ -1618,7 +1622,8 @@ export const useOrderStore = create<OrderState>()(
             },
 
             getTotalPrice: () => {
-                const { selectedServices } = get();
+                const { selectedServices,  } = get();
+                // Иначе считаем обычную цену
                 return selectedServices.reduce((total, service) => {
                     const servicePrice = service.name === "NO TV" && service.customPrice !== undefined
                         ? service.customPrice
@@ -1661,6 +1666,7 @@ export const useOrderStore = create<OrderState>()(
                         city: formData.city,
                         date: formData.date,
                         time: formData.time,
+                        custom: formData.custom,
                         master: formData.masterName,
                         manager_id: currentUser?.manager_id,
                         comment: formData.description,

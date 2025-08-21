@@ -190,7 +190,7 @@ export interface CreateOrderData {
     // Базовые обязательные поля
     owner: string | undefined;
     team: string;
-
+    custom?: number;
     // Информация о клиенте
     leadName: string;
     phone: string;
