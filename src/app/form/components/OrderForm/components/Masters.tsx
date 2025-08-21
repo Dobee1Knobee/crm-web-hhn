@@ -1,6 +1,6 @@
 import { useMastersByTeam } from "@/hooks/findMastersByTeam";
 import { useOrderStore } from "@/stores/orderStore";
-import { Wrench, Users, ChevronDown } from 'lucide-react';
+import { ChevronDown, Users, Wrench } from 'lucide-react';
 
 interface Master {
     name: string;

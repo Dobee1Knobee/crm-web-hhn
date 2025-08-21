@@ -1,27 +1,26 @@
 // DropArea.tsx — адаптивные размеры + total не выходит за рамки
 "use client";
-import React, { useState } from "react";
-import { useDroppable } from "@dnd-kit/core";
 import { useOrderStore } from "@/stores/orderStore";
+import { useDroppable } from "@dnd-kit/core";
 import {
-    ClipboardList,
-    Smartphone,
+    AlertCircle,
     AlertTriangle,
-    X,
+    Check,
+    ClipboardList,
+    DollarSign,
+    Edit3,
+    Loader2,
     Minus,
+    Paperclip,
     Plus,
-    Trash2,
     Save,
     Send,
+    Trash2,
     Tv,
-    DollarSign,
-    Paperclip,
-    Edit3,
-    Check,
-    XCircle,
-    AlertCircle,
-    Loader2
+    X,
+    XCircle
 } from 'lucide-react';
+import React, { useState } from "react";
 
 export interface ServiceItem {
     id: string;

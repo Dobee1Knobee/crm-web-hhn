@@ -14,7 +14,6 @@ import {
     Paperclip,
     Plus,
     Save,
-    Smartphone,
     Trash2,
     Tv,
     X,
@@ -45,7 +44,7 @@ interface DropAreaProps {
     onUpdateDiagonals?: (orderId: number, diagonals: string[]) => void;
     onUpdateCustomPrice?: (orderId: number, customPrice: number) => void;
     isDragOver?: boolean;
-    draggedItem?: ServiceItem;
+    draggedItem?: ServiceItem | null;
     onDrop?: (draggedItem: ServiceItem, targetMainItemId?: number) => void;
 }
 
@@ -367,8 +366,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
     const {
         formData,
         currentUser,
-        isWorkingOnTelegramOrder,
-        currentTelegramOrder,
         isSaving,
         error,
         createOrder,
@@ -422,12 +419,6 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2">
                         <ClipboardList className="w-6 h-6" />
                         Order Builder
-                        {isWorkingOnTelegramOrder && currentTelegramOrder && (
-                            <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full flex items-center gap-1">
-                                <Smartphone className="w-4 h-4" />
-                                Telegram: {currentTelegramOrder.customerName}
-                            </span>
-                        )}
                     </h2>
 
                     {error && (
@@ -447,7 +438,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                     Additional services must be dropped on main services
                                 </div>
                                 <div className="text-red-500 text-xs">
-                                    Drop "{draggedItem.name}" directly onto a main service card below, not in this zone
+                                    Drop "{draggedItem?.name}" directly onto a main service card below, not in this zone
                                 </div>
                             </div>
                         ) : (
@@ -578,16 +569,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             Total: ${total.toFixed(2)}
                         </div>
                         <div className="text-xs sm:text-sm mt-1 opacity-90 flex items-center justify-center gap-1">
-                            {isWorkingOnTelegramOrder ? (
-                                <>
-                                    <Smartphone className="w-4 h-4" />
-                                    Telegram Order: {currentTelegramOrder?.customerName || ""}
-                                </>
-                            ) : (
-                                <>
-                                    New Order: {formData.customerName || "Unnamed Customer"}
-                                </>
-                            )}
+                            New Order: {formData.customerName || "Unnamed Customer"}
                         </div>
 
                         <div className="mt-4 grid grid-cols-12 gap-3">

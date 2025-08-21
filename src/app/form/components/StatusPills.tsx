@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useOrderStore } from "@/stores/orderStore";
 import { OrderStatus } from "@/types/api";
-import {useOrderStore} from "@/stores/orderStore";
+import { useState } from 'react';
 
 interface StatusPillsProps {
     selectedStatus?: OrderStatus;

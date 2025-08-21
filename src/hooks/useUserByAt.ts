@@ -1,5 +1,5 @@
-import {Team} from "@/types/domain";
-import {useEffect, useState} from "react";
+import { Team } from "@/types/domain"
+import { useEffect, useState } from "react"
 
 export interface User{
     _id: string;

@@ -1,14 +1,21 @@
-import React, { useMemo, useState } from 'react'
-import {useOrderStore} from "@/stores/orderStore";
-import Order from "@/types/formDataType";
-import {useRouter} from "next/navigation";
-import ClientInfoModal from "@/app/myOrders/components/ClientInfoModal";
-import { OrderStatus } from "@/types/api";
+import ClientInfoModal from "@/app/myOrders/components/ClientInfoModal"
+import TransferOrderModal from "@/app/myOrders/components/TransferOrderModal"
+import { useOrderStore } from "@/stores/orderStore"
+import { OrderStatus } from "@/types/api"
+import Order from "@/types/formDataType"
 import {
-    Calendar, User, MapPin, Package, Eye, Edit, FileText, ArrowRight, Undo2
-} from 'lucide-react';
-import TransferOrderModal from "@/app/myOrders/components/TransferOrderModal";
-import toast from "react-hot-toast";
+    ArrowRight,
+    Calendar,
+    Edit,
+    Eye,
+    FileText,
+    MapPin, Package,
+    Undo2,
+    User
+} from 'lucide-react'
+import { useRouter } from "next/navigation"
+import React, { useMemo, useState } from 'react'
+import toast from "react-hot-toast"
 
 // helpers
 export type MongoDate = string | { $date: string }
@@ -102,8 +109,15 @@ export default function OrderCardPretty({ order }: OrderCardProps) {
         OrderStatus.INVALID,
         OrderStatus.ORDER_STATUS
     ]
+    
+    const currentStatus: OrderStatus = order.text_status ? ruToEnum[order.text_status] || OrderStatus.ORDER_STATUS : OrderStatus.ORDER_STATUS
+    
+    // Определяем, есть ли у заказа статус
+    const hasStatus = Boolean(order.text_status && order.text_status.trim())
+    
+    // Текст статуса для отображения
+    const statusDisplayText = hasStatus ? statusLabel[currentStatus] : 'Без статуса'
 
-    const currentStatus: OrderStatus = ruToEnum[order.text_status || 'Оформлен'] || OrderStatus.ORDER_STATUS
     const disabledAll = order.transfer_status === "in_buffer"
 
     const handleChangeStatus = (st: OrderStatus) => {
@@ -209,12 +223,12 @@ export default function OrderCardPretty({ order }: OrderCardProps) {
                             aria-expanded={statusOpen}
                             title={disabledAll ? "Заказ в буфере — изменение статуса недоступно" : "Изменить статус"}
                         >
-                            {statusLabel[currentStatus]}
+                            {statusDisplayText}
                         </button>
 
                         {statusOpen && !disabledAll && (
                             <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-80 overflow-auto" role="listbox">
-                                {availableStatuses.map((st) => (
+                                {effectiveAvailableStatuses.map((st) => (
                                     <button
                                         key={st}
                                         role="option"

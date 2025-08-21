@@ -1,5 +1,5 @@
 // CustomerInfo.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ
-import { useOrderStore } from '@/stores/orderStore'
+import { useOrderStore } from '@/stores/orderStore';
 
 export default function CustomerInfo() {
     // 🏪 Подключаемся к store

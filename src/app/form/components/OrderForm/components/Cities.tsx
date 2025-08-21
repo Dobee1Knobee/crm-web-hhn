@@ -1,7 +1,7 @@
 // Cities.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ
-import { useGetCities } from "@/hooks/useCitiesByTeam"
-import { useOrderStore } from '@/stores/orderStore'
-import { useEffect } from "react"
+import { useGetCities } from "@/hooks/useCitiesByTeam";
+import { useOrderStore } from '@/stores/orderStore';
+import { useEffect } from "react";
 
 interface City {
     _id: string;

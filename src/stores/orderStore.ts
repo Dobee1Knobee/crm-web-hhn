@@ -1643,7 +1643,7 @@ export const useOrderStore = create<OrderState>()(
                     set({ error: errors.join(', ') });
                     return null;
                 }
-
+                const currentUser = get().currentUser;
                 set({ isSaving: true, error: null });
 
                 try {
@@ -1662,7 +1662,7 @@ export const useOrderStore = create<OrderState>()(
                         date: formData.date,
                         time: formData.time,
                         master: formData.masterName,
-                        manager_id: formData.masterId,
+                        manager_id: currentUser?.manager_id,
                         comment: formData.description,
                         services: orderServices,
                         text_status: formData.text_status,
@@ -1675,7 +1675,7 @@ export const useOrderStore = create<OrderState>()(
                         transfer_history: [],
                         changes: []
                     };
-                    console.log(orderData);
+                    console.log(`❌❌❌❌${orderData}`);
 
                     const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/api/addOrder', {
                         method: 'POST',
@@ -2245,8 +2245,6 @@ export const useOrderStore = create<OrderState>()(
                     orders: [],
                     teamBufferOrders: [],
                     myOrders: [],
-                    currentTelegramOrder: null,
-                    isWorkingOnTelegramOrder: false,
                     isLoading: false,
                     isSaving: false,
                     error: null,

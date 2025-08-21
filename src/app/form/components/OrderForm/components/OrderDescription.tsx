@@ -1,4 +1,4 @@
-import {useOrderStore} from "@/stores/orderStore";
+import { useOrderStore } from "@/stores/orderStore";
 
 export default function OrderDescription(){
     const {
