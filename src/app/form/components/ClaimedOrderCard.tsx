@@ -1,4 +1,4 @@
-import { FileText, MapPin, User } from 'lucide-react'
+import { FileText, MapPin, User } from 'lucide-react';
 
 interface NoteOfClaimedOrder {
     telephone: string;

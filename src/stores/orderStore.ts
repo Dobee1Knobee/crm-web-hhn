@@ -343,6 +343,7 @@ export interface OrderState extends BufferState {
     //Действия заказом claimed из телеграма 
     bindOrderToForm: (form_id:string,orderId: string) => Promise<boolean>;
     getNoteOfClaimedOrder: (form_id: string) => Promise<NoteOfClaimedOrder | undefined>;
+    getClaimedOrders: () => Promise<NoteOfClaimedOrder[] | []>;
     // ===== ФУНКЦИИ ПОИСКА =====
     searchOrders: (query: string) => Promise<void>;
     clearSearchResults: () => void;
@@ -643,18 +644,8 @@ export const useOrderStore = create<OrderState>()(
                             timestamp: new Date(),
                             read: false
                         };
-                        const noteData = await get().getNoteOfClaimedOrder(data?.form_id);
-                        if (noteData) {
-                            console.log('🔍 Adding new claimed order:', noteData);
-                            set(state => ({
-                                noteOfClaimedOrder: [...state.noteOfClaimedOrder, noteData]
-                            }));
-                            
-                            // Сохраняем в sessionStorage
-                            const updatedOrders = [...get().noteOfClaimedOrder, noteData];
-                            setSessionStorageJSON('noteOfClaimedOrder', updatedOrders);
-                            console.log('💾 Saved to sessionStorage:', updatedOrders);
-                        }
+                        const noteData = await get().getClaimedOrders();
+                        console.log('🔍 noteData:', noteData);
                     
 
                         // UI тост
@@ -803,7 +794,43 @@ export const useOrderStore = create<OrderState>()(
             clearNotifications: () => {
                 set({ notifications: [] });
             },
-
+            getClaimedOrders: async () => {
+                const { currentUser } = get();
+                if (!currentUser) {
+                    set({ bufferError: 'Пользователь не авторизован' });
+                    return [];
+                }
+                const response = await fetch('https://bot-crm-backend-756832582185.us-central1.run.app/api/user/getClaimedOrders',{
+                    method:"POST",
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        at: currentUser.userAt
+                    })
+                });
+                const data = await response.json();
+                
+                if (!data.success || !data.forms) {
+                    return [];
+                }
+                
+                // Преобразуем данные в формат NoteOfClaimedOrder
+                const claimedOrders: NoteOfClaimedOrder[] = data.forms.map((form: any) => ({
+                    telephone: form.telephone,
+                    form_id: form._id,
+                    name: form.client_name,
+                    text: {
+                        size: form.text.size || '',
+                        mountType: form.text.mountType || '',
+                        surfaceType: form.text.surfaceType || '',
+                        wires: form.text.wires || '',
+                        addons: form.text.addons || ''
+                    },
+                    city: form.text.city || '',
+                    state: form.text.state || ''
+                }));
+                set({noteOfClaimedOrder: claimedOrders});
+                return claimedOrders;
+            },
             getUnreadNotificationsCount: () => {
                 const { notifications } = get();
                 return notifications.filter(n => !n.read).length;
@@ -1347,6 +1374,8 @@ export const useOrderStore = create<OrderState>()(
                     get().connectSocket();
                     // Также загружаем буфер
                     get().fetchBufferOrders();
+                    // 🆕 ЗАГРУЖАЕМ claimed orders
+                    get().getClaimedOrders();
                 }, 100);
             },
 
@@ -1391,6 +1420,8 @@ export const useOrderStore = create<OrderState>()(
                     setTimeout(() => {
                         get().connectSocket();
                         get().fetchBufferOrders();
+                        // 🆕 ЗАГРУЖАЕМ claimed orders при инициализации
+                        get().getClaimedOrders();
                     }, 100);
                 }
             },
@@ -2204,6 +2235,9 @@ export const useOrderStore = create<OrderState>()(
                 // 🆕 ОТКЛЮЧАЕМ WEBSOCKET при сбросе
                 get().disconnectSocket();
 
+                //  НЕ СБРАСЫВАЕМ noteOfClaimedOrder при reset
+                const currentClaimedOrders = get().noteOfClaimedOrder;
+
                 set({
                     currentOrder: null,
                     formData: initialFormData,
@@ -2235,7 +2269,9 @@ export const useOrderStore = create<OrderState>()(
                         lastUpdated: null
                     },
                     isLoadingBuffer: false,
-                    bufferError: null
+                    bufferError: null,
+                    // 🆕 СОХРАНЯЕМ noteOfClaimedOrder
+                    noteOfClaimedOrder: currentClaimedOrders
                 });
             }
         })),
