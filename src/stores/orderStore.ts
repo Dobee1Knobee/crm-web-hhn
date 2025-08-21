@@ -1938,6 +1938,7 @@ export const useOrderStore = create<OrderState>()(
                     // Добавляем дополнительные параметры поиска если есть
                     if (query?.owner) url.searchParams.append('owner', query.owner);
                     if (query?.transfer_status) url.searchParams.append('transfer_status', query.transfer_status);
+                    if (query?.text_status) url.searchParams.append('text_status', query.text_status);
 
                     console.log('Fetching orders with pagination:', { page, limit, query });
 

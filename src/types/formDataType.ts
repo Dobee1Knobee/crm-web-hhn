@@ -237,6 +237,7 @@ export interface OrderSearchQuery {
     owner?: string;
     team?: string;
     transfer_status?: TransferStatus;
+    text_status?: string;
     phone?: string;
     leadName?: string;
     city?: string;

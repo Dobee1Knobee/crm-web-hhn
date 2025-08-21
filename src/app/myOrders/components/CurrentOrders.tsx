@@ -60,19 +60,29 @@ export default function OrdersDemo() {
             setSearchQuery('');
             setIsSearchMode(false);
         }
+        // Сбрасываем фильтр статуса при обновлении
+        setStatusFilter('');
         fetchOrders({ page: currentPage, limit: ordersPerPage });
+    };
+
+    const handleStatusFilterChange = (newStatus: string) => {
+        setStatusFilter(newStatus);
+        // Применяем фильтр и переходим на первую страницу
+        fetchOrders({ page: 1, limit: ordersPerPage }, { text_status: newStatus || undefined });
     };
 
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
 
         setIsSearchMode(true);
+        setStatusFilter(''); // Сбрасываем фильтр статуса при поиске
         await searchOrders(searchQuery.trim());
     };
 
     const handleClearSearch = () => {
         setSearchQuery('');
         setIsSearchMode(false);
+        setStatusFilter('');
         fetchOrders({ page: currentPage, limit: ordersPerPage });
     };
 
@@ -120,8 +130,12 @@ export default function OrdersDemo() {
     const totalOrders = getTotalOrders();
 
     // Determine which orders to display - только мои заказы
-    const displayOrders = isSearchMode ? searchResults?.myOrders || [] : orders;
-    const displayCount = isSearchMode ? searchResults?.counts?.my || 0 : totalOrders;
+    const filteredOrders = statusFilter 
+        ? orders.filter(order => order.text_status === statusFilter)
+        : orders;
+    
+    const displayOrders = isSearchMode ? searchResults?.myOrders || [] : filteredOrders;
+    const displayCount = isSearchMode ? searchResults?.counts?.my || 0 : (statusFilter ? filteredOrders.length : totalOrders);
 
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
@@ -129,7 +143,7 @@ export default function OrdersDemo() {
                 <div className="flex flex-row items-center gap-2">
                     <Folder size={24} className="text-gray-800" />
                     <h1 className="text-2xl font-bold text-gray-800">
-                        {isSearchMode ? 'Search Results' : 'My Orders'}
+                        {isSearchMode ? 'Результаты поиска' : 'Мои заказы'}
                     </h1>
                 </div>
                 <div className="text-gray-600">
@@ -149,10 +163,16 @@ export default function OrdersDemo() {
                         </>
                     ) : pagination ? (
                         <>
-                            Showing {((currentPage - 1) * ordersPerPage) + 1}-{Math.min(currentPage * ordersPerPage, totalOrders)} of {totalOrders} orders
+                            {statusFilter ? (
+                                `Показано ${filteredOrders.length} заказов со статусом "${statusFilter}"`
+                            ) : (
+                                `Showing ${((currentPage - 1) * ordersPerPage) + 1}-${Math.min(currentPage * ordersPerPage, totalOrders)} of ${totalOrders} orders`
+                            )}
                         </>
                     ) : (
-                        `Showing ${orders.length} orders`
+                        statusFilter ? 
+                            `Показано ${filteredOrders.length} заказов со статусом "${statusFilter}"` :
+                            `Showing ${orders.length} orders`
                     )}
                 </div>
             </div>
@@ -210,38 +230,60 @@ export default function OrdersDemo() {
                             )}
                         </div>
 
-                        {/* Status Filter - Only for regular orders, not search */}
-                        {!isSearchMode && (
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-2">
                             <select
                                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                 value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
+                                onChange={(e) => handleStatusFilterChange(e.target.value)}
                             >
-                                <option value="">All Statuses</option>
-                                <option value={OrderStatus.IN_WORK}>In Work</option>
-                                <option value={OrderStatus.COMPLETED}>Completed</option>
-                                <option value={OrderStatus.CANCELLED}>Cancelled</option>
-                                <option value={OrderStatus.INVALID}>Invalid</option>
+                                <option value="">Все статусы</option>
+                                <option value={OrderStatus.IN_WORK}>{OrderStatus.IN_WORK}</option>
+                                <option value={OrderStatus.COMPLETED}>{OrderStatus.COMPLETED}</option>
+                                <option value={OrderStatus.CANCELLED}>{OrderStatus.CANCELLED}</option>
+                                <option value={OrderStatus.INVALID}>{OrderStatus.INVALID}</option>
+                                <option value={OrderStatus.OTHER_REGION}>{OrderStatus.OTHER_REGION}</option>
+                                <option value={OrderStatus.NO_ANSWER}>{OrderStatus.NO_ANSWER}</option>
+                                <option value={OrderStatus.NIGHT}>{OrderStatus.NIGHT}</option>
+                                <option value={OrderStatus.NIGHT_EARLY}>{OrderStatus.NIGHT_EARLY}</option>
+                                <option value={OrderStatus.NEED_CONFIRMATION}>{OrderStatus.NEED_CONFIRMATION}</option>
+                                <option value={OrderStatus.NEED_APPROVAL}>{OrderStatus.NEED_APPROVAL}</option>
+                                <option value={OrderStatus.CALL_TOMORROW}>{OrderStatus.CALL_TOMORROW}</option>
+                                <option value={OrderStatus.ORDER_STATUS}>{OrderStatus.ORDER_STATUS}</option>
                             </select>
-                        )}
-
-                        {/* Per Page Selector - Only for regular orders */}
-                        {!isSearchMode && (
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-700">Per page:</label>
-                                <select
-                                    value={ordersPerPage}
-                                    onChange={(e) => changePageSize(Number(e.target.value))}
-                                    disabled={isLoading}
-                                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            {statusFilter && (
+                                <button
+                                    onClick={() => handleStatusFilterChange('')}
+                                    className="px-2 py-2 text-gray-500 hover:text-gray-700 transition-colors duration-200"
+                                    title="Сбросить фильтр статуса"
                                 >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={20}>20</option>
-                                    <option value={50}>50</option>
-                                </select>
-                            </div>
-                        )}
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Per Page Selector */}
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-700">На странице:</label>
+                            <select
+                                value={ordersPerPage}
+                                onChange={(e) => {
+                                    const newLimit = Number(e.target.value);
+                                    if (statusFilter) {
+                                        fetchOrders({ page: 1, limit: newLimit }, { text_status: statusFilter });
+                                    } else {
+                                        changePageSize(newLimit);
+                                    }
+                                }}
+                                disabled={isLoading}
+                                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
                     </div>
 
                     <button
@@ -353,11 +395,18 @@ export default function OrdersDemo() {
                     <div className="flex items-center justify-center gap-1">
                         {/* Previous button */}
                         <button
-                            onClick={fetchPrevPage}
+                            onClick={() => {
+                                const prevPage = currentPage - 1;
+                                if (statusFilter) {
+                                    fetchOrders({ page: prevPage, limit: ordersPerPage }, { text_status: statusFilter });
+                                } else {
+                                    fetchPrevPage();
+                                }
+                            }}
                             disabled={!hasPrevPage() || isLoading}
                             className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            ← Previous
+                            ← Предыдущая
                         </button>
 
                         {/* Page numbers */}
@@ -367,7 +416,13 @@ export default function OrdersDemo() {
                                     <span className="px-3 py-2 text-sm text-gray-500">...</span>
                                 ) : (
                                     <button
-                                        onClick={() => fetchPage(page as number)}
+                                        onClick={() => {
+                                            if (statusFilter) {
+                                                fetchOrders({ page: page as number, limit: ordersPerPage }, { text_status: statusFilter });
+                                            } else {
+                                                fetchPage(page as number);
+                                            }
+                                        }}
                                         disabled={isLoading}
                                         className={`px-3 py-2 text-sm font-medium border ${
                                             currentPage === page
@@ -383,11 +438,18 @@ export default function OrdersDemo() {
 
                         {/* Next button */}
                         <button
-                            onClick={fetchNextPage}
+                            onClick={() => {
+                                const nextPage = currentPage + 1;
+                                if (statusFilter) {
+                                    fetchOrders({ page: nextPage, limit: ordersPerPage }, { text_status: statusFilter });
+                                } else {
+                                    fetchNextPage();
+                                }
+                            }}
                             disabled={!hasNextPage() || isLoading}
                             className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Next →
+                            Следующая →
                         </button>
                     </div>
 
@@ -404,7 +466,11 @@ export default function OrdersDemo() {
                                     onChange={(e) => {
                                         const page = Number(e.target.value);
                                         if (page >= 1 && page <= totalPages) {
-                                            fetchPage(page);
+                                            if (statusFilter) {
+                                                fetchOrders({ page, limit: ordersPerPage }, { text_status: statusFilter });
+                                            } else {
+                                                fetchPage(page);
+                                            }
                                         }
                                     }}
                                     disabled={isLoading}
