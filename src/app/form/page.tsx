@@ -1,17 +1,17 @@
 // LoginForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ
 "use client";
-import { DropArea } from "@/app/form/components/DropArea"
-import Header from "@/app/form/components/Header"
-import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm"
-import OrderForm from "@/app/form/components/OrderForm/OrderForm"
-import Sidebar from "@/app/form/components/Sidebar"
-import StatusPills from "@/app/form/components/StatusPills"
-import "@/app/global.css"
-import { useUserByAt } from "@/hooks/useUserByAt"
-import { useOrderStore } from "@/stores/orderStore"
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core"
-import { useState } from "react"
-import ProtectedRoute from "@/components/ProtectedRoute"
+import { DropArea } from "@/app/form/components/DropArea";
+import Header from "@/app/form/components/Header";
+import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm";
+import OrderForm from "@/app/form/components/OrderForm/OrderForm";
+import Sidebar from "@/app/form/components/Sidebar";
+import StatusPills from "@/app/form/components/StatusPills";
+import "@/app/global.css";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { useUserByAt } from "@/hooks/useUserByAt";
+import { useOrderStore } from "@/stores/orderStore";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core";
+import { useState } from "react";
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -106,6 +106,9 @@ export default function Home() {
             <DndContext
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
+                modifiers={[]}
+                sensors={[]}
+                autoScroll={false}
             >
                 <div className="h-screen flex bg-gray-50 overflow-hidden">
                     <Sidebar />
@@ -164,7 +167,7 @@ export default function Home() {
                             }`}>
                                 {activeService.category}
                             </span>
-                            <div className="absolute -inset-1 bg-blue-400 rounded-lg opacity-30 animate-pulse"></div>
+
                         </div>
                     ) : null}
                 </DragOverlay>

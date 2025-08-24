@@ -79,12 +79,12 @@
   @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
 }
 
-/* Smooth transitions for all interactive elements */
-* {
+/* Remove global transitions that cause drag delay */
+/* * {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
-}
+} */
 
 /* Enhanced button hover effects */
 .btn-hover {
@@ -99,6 +99,23 @@
 /* Input focus effects */
 .input-focus {
   @apply focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200;
+}
+
+/* Remove drag delays for draggable elements */
+[data-draggable="true"],
+[data-draggable="true"] *,
+.draggable,
+.draggable * {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Optimize drag performance */
+.draggable-item {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* Sidebar specific styles */

@@ -102,6 +102,9 @@ export default function ChangeOrder() {
             <DndContext
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
+                modifiers={[]}
+                sensors={[]}
+                autoScroll={false}
             >
                 <div className="h-screen flex bg-gray-50 overflow-hidden">
                     <Sidebar />

@@ -68,14 +68,19 @@ export function DraggableItem({ item, category, isActive = false }: DraggableIte
             {...listeners}
             {...attributes}
             className={`
-                rounded-lg text-white text-center text-xs font-medium 
+                draggable-item rounded-lg text-white text-center text-xs font-medium 
                 px-3 py-2 min-h-[58px] flex flex-col justify-center items-center 
-                transition-all duration-200 cursor-grab active:cursor-grabbing relative
-                transform-gpu will-change-transform
+                cursor-grab active:cursor-grabbing relative
                 ${styles.bg} ${styles.bgHover}
-                hover:scale-105 hover:shadow-lg ${styles.shadow}
                 ${isDragging || isActive ? 'opacity-30 scale-95' : 'opacity-100'}
             `}
+            style={{
+                touchAction: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+                WebkitTapHighlightColor: 'transparent',
+            }}
         >
             <span className="leading-tight font-semibold">{item.label}</span>
             <span className="text-[11px] mt-1 opacity-90">${item.price}</span>
@@ -83,12 +88,9 @@ export function DraggableItem({ item, category, isActive = false }: DraggableIte
             {/* Индикатор что элемент можно перетаскивать */}
             {!isDragging && !isActive && (
                 <div className="absolute top-1 right-1 w-2 h-2 opacity-40">
-                    <div className="w-full h-full bg-white rounded-full animate-pulse"></div>
+                    <div className="w-full h-full bg-white rounded-full"></div>
                 </div>
             )}
-
-            {/* Эффект при hover */}
-            <div className="absolute inset-0 rounded-lg bg-white opacity-0 hover:opacity-10 transition-opacity duration-200"></div>
         </div>
     );
 }
