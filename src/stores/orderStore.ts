@@ -1458,14 +1458,14 @@ export const useOrderStore = create<OrderState>()(
 
                 if (!formData.phoneNumber.trim()) errors.push('Phone number is required');
                 selectedServices.forEach(service => {
-                    if (service.category === 'main' && service.name !== 'NO TV') {
+                    if (service.category === 'main' && service.name !== 'NO TV' && service.value !== 'noTV') {
                         if (!service.diagonals || service.diagonals.length === 0) {
                             errors.push(`TV diagonals are required for ${service.name}`);
                         }
                     }
-                    if (service.category === 'main' && service.name === 'NO TV') {
+                    if (service.category === 'main' && (service.name === 'NO TV' || service.name === 'Custom' || service.value === 'noTV' || service.value === 'custom')) {
                         if (!service.customPrice) {
-                            errors.push('Custom price is required for NO TV service');
+                            errors.push(`Custom price is required for ${service.name} service`);
                         }
                     }
                 });
@@ -1622,17 +1622,22 @@ export const useOrderStore = create<OrderState>()(
             },
 
             getTotalPrice: () => {
-                const { selectedServices,  } = get();
+                const { selectedServices } = get();
+            
                 // Иначе считаем обычную цену
                 return selectedServices.reduce((total, service) => {
-                    const servicePrice = service.name === "NO TV" && service.customPrice !== undefined
+                    const servicePrice = (service.name === "NO TV" || service.name === "Custom" || service.value === "noTV" || service.value === "custom") && service.customPrice !== undefined
                         ? service.customPrice
                         : service.price;
                     const serviceTotal = servicePrice * (service.quantity || 1);
 
                     const subItemsTotal = service.subItems ?
-                        service.subItems.reduce((subSum: number, subItem: ServiceItem) =>
-                            subSum + (subItem.price * (subItem.quantity || 1)), 0
+                        service.subItems.reduce((subSum: number, subItem: ServiceItem) => {
+                            const subItemPrice = (subItem.name === "NO TV" || subItem.name === "Custom" || subItem.value === "noTV" || subItem.value === "custom") && subItem.customPrice !== undefined
+                                ? subItem.customPrice
+                                : subItem.price;
+                            return subSum + (subItemPrice * (subItem.quantity || 1));
+                        }, 0
                         ) : 0;
 
                     return total + serviceTotal + subItemsTotal;
@@ -1807,6 +1812,7 @@ export const useOrderStore = create<OrderState>()(
                         master: formData.masterName,
                         comment: formData.description,
                         team: formData.teamId,
+                        custom: formData.custom,
                         services: orderServices,
                         total: get().getTotalPrice(),
                         // Добавляем информацию об изменении

@@ -1,9 +1,10 @@
 // utils/mapOrderToForm.ts
-import type { Order } from "@/types/formDataType";
 import type { FormData } from "@/stores/orderStore"; // или продублируй тип
+import type { Order } from "@/types/formDataType"
 
 export const mapOrderToFormPatch = (o: Order): Partial<FormData> => ({
     customerName: o.leadName ?? "",
+    custom: o.custom ?? 0,
     phoneNumber : o.phone ?? "",
     text_status : o.text_status ?? "",
     address     : o.address ?? "",

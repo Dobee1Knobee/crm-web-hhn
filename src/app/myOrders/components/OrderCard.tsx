@@ -313,7 +313,11 @@ export default function OrderCardPretty({ order }: OrderCardProps) {
                 {/* Total & actions */}
                 <div className="mt-5 flex items-center justify-between">
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <span>{order.total ? `$${order.total.toFixed(2)}` : '$0.00'}</span>
+                    {order.custom ? (
+                        <span>{`$${order.custom.toFixed(2)}`}</span>
+                        ) : (
+                        <span>{`$${order.total ? order.total.toFixed(2) : '0.00'}`}</span>
+                        )}
                     </div>
                     <div className="flex items-center gap-3">
                         <button

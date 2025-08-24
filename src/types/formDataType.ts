@@ -104,6 +104,7 @@ export interface Order {
     owner: string; // обязательное поле
     order_id: string;
     createdAt: Date;
+    custom?: number;
     address?: string;
     client_id?: number;
     form_ID?: string;

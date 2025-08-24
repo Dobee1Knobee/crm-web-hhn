@@ -1,5 +1,5 @@
 // utils/mapApiServicesToSelected.ts
-import type {OrderService, ServiceItem} from "@/types/formDataType";
+import type { OrderService, ServiceItem } from "@/types/formDataType";
 
 type CatalogEntry = { label: string; value: string; price: number };
 type ServiceCatalog = {
@@ -86,12 +86,17 @@ export function mapApiServicesToSelected(
         pushSub(s.addons);
         pushSub(s.materials);
 
+        // Определяем, нужна ли кастомная цена
+        const needsCustomPrice = (s.label === "NO TV" || s.label === "Custom" || s.value === "noTV" || s.value === "custom");
+        const customPrice = needsCustomPrice ? s.price : undefined;
+
         const main: ServiceItem = {
             id:   mainCat?.value ?? (s.value ?? s.label.toLowerCase()),
             name: mainCat?.label ?? s.label,
             value: mainCat?.value ?? (s.value ?? s.label.toLowerCase()),
             category: "main",
-            price: s.price ?? mainCat?.price ?? 0,
+            price: mainCat?.price ?? 0, // Используем цену из каталога как базовую
+            customPrice: customPrice, // Устанавливаем кастомную цену если нужно
             quantity: s.count ?? 1,
             orderId: mainOrderId,
             subItems,

@@ -1,13 +1,13 @@
 // src/app/form/components/Sidebar.tsx
 'use client';
 
-import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore';
-import Order from "@/types/formDataType";
-import { getSessionStorage } from '@/utils/storage';
+import ConnectionStatus from '@/components/ConnectionStatus'
+import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore'
+import Order from "@/types/formDataType"
 import {
-    Calendar,
+    ChevronLeft,
+    ChevronRight,
     ClipboardList,
-    DollarSign,
     FileText,
     Folder,
     Lock,
@@ -15,11 +15,11 @@ import {
     Plus,
     Search,
     User
-} from "lucide-react";
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import ClaimedOrderCard from './ClaimedOrderCard';
-import ConfidentialViewModal from './ConfidentialViewModal';
+} from "lucide-react"
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import ClaimedOrderCard from './ClaimedOrderCard'
+import ConfidentialViewModal from './ConfidentialViewModal'
 
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -47,7 +47,7 @@ export default function Sidebar() {
         viewNotMyOrder,
         currentUser,
         formData,
-        getByLeadID // Для загрузки заказа
+        getByLeadID
     } = useOrderStore();
     const bufferCount = useOrderStore(state => state.bufferStats.totalCount);
     const { isSocketConnected} = useOrderStore();
@@ -56,14 +56,6 @@ export default function Sidebar() {
     const noteOfClaimedOrder = useOrderStore(state => state.noteOfClaimedOrder);
     const clearClaimedOrders = useOrderStore(state => state.clearClaimedOrders);
     const syncClaimedOrders = useOrderStore(state => state.syncClaimedOrders);
-    
-    // Отладочная информация
-    console.log('🔍 Sidebar - noteOfClaimedOrder:', noteOfClaimedOrder);
-    console.log('🔍 Sidebar - Type:', typeof noteOfClaimedOrder);
-    console.log('🔍 Sidebar - Is Array:', Array.isArray(noteOfClaimedOrder));
-    console.log('🔍 Sidebar - Length:', noteOfClaimedOrder?.length);
-    console.log('🔍 Sidebar - sessionStorage:', getSessionStorage('noteOfClaimedOrder'));
-
 
     // Загрузка активного таба
     useEffect(() => {
@@ -76,9 +68,7 @@ export default function Sidebar() {
 
     // Синхронизация заклейменных заказов при загрузке
     useEffect(() => {
-        console.log('🔄 Sidebar - Syncing claimed orders on mount');
         const syncedOrders = syncClaimedOrders();
-        console.log('🔄 Sidebar - Synced orders:', syncedOrders);
     }, [syncClaimedOrders]);
 
     // Сохранение активного таба
@@ -97,7 +87,7 @@ export default function Sidebar() {
         if (searchQuery.trim() && searchQuery.length >= 3) {
             const timeout = setTimeout(() => {
                 searchOrders(searchQuery);
-            }, 500); // Задержка 500мс
+            }, 500);
 
             setSearchTimeout(timeout);
         } else if (searchQuery.length === 0) {
@@ -113,12 +103,7 @@ export default function Sidebar() {
 
     // Обработка клика по заклеймленному заказу
     const handleTakeToWork = (order: NoteOfClaimedOrder) => {
-        console.log('🔍 handleTakeToWork - order:', order);
-        console.log('🔍 handleTakeToWork - order.form_id:', order.form_id);
-        
-        // 1. Обновляем store
         useOrderStore.setState({formIdClaimedOrderInProcess: order.form_id})
-        console.log('🔍 handleTakeToWork - set formIdClaimedOrderInProcess:', order.form_id);
 
         useOrderStore.setState({
             formData: {
@@ -129,9 +114,6 @@ export default function Sidebar() {
             }
         });
         
-        console.log('🔍 handleTakeToWork - formData updated');
-        
-        // 2. Ждем обновления store
         setTimeout(() => {
             router.push('/form');
         }, 100);
@@ -155,7 +137,6 @@ export default function Sidebar() {
                 if(!isExpanded) {
                     setIsExpanded(true);
                 }
-                // Остаемся на текущей странице, активируем поиск
                 break;
         }
     };
@@ -175,10 +156,9 @@ export default function Sidebar() {
         setSelectedNotMyOrder(order);
         setShowConfidentialModal(true);
     };
-    //TODO:подключить счетчик 
+
     // Подтверждение просмотра чужого заказа
     const handleConfirmView = async () => {
-        console.log('🔍 handleConfirmView called');
         if (selectedNotMyOrder) {
             await viewNotMyOrder(selectedNotMyOrder.order_id);
             await getByLeadID(selectedNotMyOrder.order_id);
@@ -189,7 +169,6 @@ export default function Sidebar() {
 
     // Отмена просмотра
     const handleCancelView = () => {
-        console.log('🔍 handleCancelView called');
         setSelectedNotMyOrder(undefined);
         setShowConfidentialModal(false);
     };
@@ -205,95 +184,88 @@ export default function Sidebar() {
     return (
         <div className="min-h-screen flex">
             <div className={`
-                bg-white shadow-2xl transition-all duration-300
-                ${isExpanded ? 'w-80' : 'w-16'} flex flex-col border-r border-gray-200
+                bg-white shadow-lg transition-all duration-300 ease-out
+                ${isExpanded ? 'w-72' : 'w-16'} flex flex-col border-r border-gray-100
             `}>
-                {/* Header collapse button */}
-                <div className="p-4 border-b border-gray-200">
+                {/* Compact Header */}
+                <div className="p-2 border-b border-gray-100 bg-gray-50">
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors duration-200"
+                        className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all duration-200 shadow-sm border border-gray-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                        title={isExpanded ? "Свернуть" : "Развернуть"}
                     >
-                        <span className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                            →
-                        </span>
+                        {isExpanded ? (
+                            <ChevronLeft size={16} className="text-gray-600" />
+                        ) : (
+                            <ChevronRight size={16} className="text-gray-600" />
+                        )}
                     </button>
                 </div>
 
                 <div className="flex-1 overflow-hidden">
                     {isExpanded ? (
-                        <div className="p-4 space-y-3 h-full flex flex-col">
-                            {/* Claimed Orders Section */}
-                            <div className="mb-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                        Claimed Orders ({noteOfClaimedOrder?.length || 0})
+                        <div className="p-2 space-y-2 h-full flex flex-col">
+                            {/* Ultra-compact Claimed Orders */}
+                            <div className="flex-shrink-0">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <h3 className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                        <span>Claimed Orders</span>
+                                        {noteOfClaimedOrder && Array.isArray(noteOfClaimedOrder) && noteOfClaimedOrder.length > 0 && (
+                                            <span className="bg-blue-100 text-blue-600 text-xs px-1.5 py-0.5 rounded-full font-medium">
+                                                {noteOfClaimedOrder.length}
+                                            </span>
+                                        )}
                                     </h3>
-                        
                                 </div>
                                 
                                 {noteOfClaimedOrder && Array.isArray(noteOfClaimedOrder) && noteOfClaimedOrder.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                                         {noteOfClaimedOrder.map(order => (
                                             <ClaimedOrderCard key={order.telephone} order={order} onTakeToWork={() => {handleTakeToWork(order)}} />
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-6 text-gray-500">
-                                        <div className="mb-2">
-                                            <FileText size={24} className="mx-auto text-gray-400" />
-                                        </div>
-                                        <div className="text-sm">No claimed orders yet</div>
-                                        <div className="text-xs text-gray-400 mt-1">
-                                        Orders you claim from telegram will appear here
-                                        </div>
+                                    <div className="text-center py-1.5 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                        <FileText size={10} className="mx-auto text-gray-300 mb-0.5" />
+                                        <div className="text-xs text-gray-500">No orders</div>
                                     </div>
                                 )}
                             </div>
-                            {/* Navigation buttons */}
-                            <div>
-                                {isSocketConnected ? (
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-green-600 rounded-full w-3 h-3 inline-block"></span>
-                                        <span>You connected to team {currentUser?.team}</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-red-600 rounded-full w-3 h-3 inline-block"></span>
-                                        <span>You disconnected</span>
-                                    </div>
-                                )}
+                            
+                            {/* Compact Connection Status */}
+                            <div className="flex-shrink-0">
+                                <ConnectionStatus />
                             </div>
 
-
-                            <div className="space-y-3">
+                            {/* Ultra-compact Navigation Buttons */}
+                            <div className="flex-shrink-0 space-y-1.5">
                                 <button
                                     onClick={() => handleClick('new-order')}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
                                         activeTab === 'new-order'
-                                            ? 'bg-blue-100 text-blue-700 shadow-md'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                     }`}
                                 >
-                                    <Plus size={18} />
+                                    <Plus size={14} />
                                     <span>New Order</span>
                                 </button>
 
                                 <button
                                     onClick={() => handleClick('buffer')}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
                                         activeTab === 'buffer'
-                                            ? 'bg-orange-100 text-orange-700 shadow-md'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-orange-50 text-orange-700 border border-orange-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                     }`}
                                 >
-                                    <div className="flex items-center space-x-3">
-                                        <ClipboardList size={18} />
+                                    <div className="flex items-center space-x-2">
+                                        <ClipboardList size={14} />
                                         <span>Buffer</span>
                                     </div>
                                     {bufferCount > 0 && (
-                                        <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                                        <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
                                             {bufferCount}
                                         </span>
                                     )}
@@ -301,67 +273,66 @@ export default function Sidebar() {
 
                                 <button
                                     onClick={() => handleClick('my-orders')}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
                                         activeTab === 'my-orders'
-                                            ? 'bg-green-100 text-green-700 shadow-md'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-green-50 text-green-700 border border-green-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                     }`}
                                 >
-                                    <Folder size={18} />
+                                    <Folder size={14} />
                                     <span>My Orders</span>
                                 </button>
 
                                 <button
                                     onClick={() => handleClick('search')}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
                                         activeTab === 'search'
-                                            ? 'bg-purple-100 text-purple-700 shadow-md'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-purple-50 text-purple-700 border border-purple-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                     }`}
                                 >
-                                    <Search size={18} />
-                                    <span>Search Orders</span>
+                                    <Search size={14} />
+                                    <span>Search</span>
                                 </button>
                             </div>
 
-                            {/* Search section */}
+                            {/* Ultra-compact Search section */}
                             {activeTab === 'search' && (
-                                <div className="flex-1 flex flex-col min-h-0">
+                                <div className="flex-1 flex flex-col min-h-0 space-y-2">
                                     {/* Search input */}
-                                    <div className="relative mb-4">
+                                    <div className="relative">
                                         <input
                                             type="text"
-                                            placeholder="Order ID, Phone, ZIP, Address..."
+                                            placeholder="Order ID, Phone, ZIP..."
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="w-full p-3 pl-10 border-2 border-gray-200 rounded-xl bg-gray-50 focus:border-purple-400 focus:bg-white transition-all duration-200 text-sm"
+                                            className="w-full p-1.5 pl-7 border border-gray-200 rounded-lg bg-gray-50 focus:border-blue-400 focus:bg-white transition-colors duration-200 text-xs"
                                         />
-                                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                                            <Search size={16} />
+                                        <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                            <Search size={12} />
                                         </div>
                                         {isSearching && (
-                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Search hints */}
+                                    {/* Compact Search hints */}
                                     {!searchQuery && (
-                                        <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-50 rounded-lg">
+                                        <div className="text-xs text-gray-500 p-1.5 bg-gray-50 rounded-lg">
                                             <div className="font-medium mb-1">Examples:</div>
                                             <div>• AH0730003</div>
                                             <div>• 1234567890</div>
-                                            <div>• Brooklyn</div>
                                         </div>
                                     )}
 
-                                    {/* Search results */}
-                                    <div className="flex-1 overflow-y-auto space-y-2">
+                                    {/* Ultra-compact Search results */}
+                                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                                         {searchResults && searchResults.counts.total > 0 ? (
                                             <>
                                                 {/* Summary */}
-                                                <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded-lg">
+                                                <div className="text-xs text-gray-600 p-1.5 bg-gray-50 rounded-lg">
                                                     Found {searchResults.counts.total} orders
                                                     ({searchResults.counts.my} mine, {searchResults.counts.notMy} others)
                                                 </div>
@@ -371,33 +342,29 @@ export default function Sidebar() {
                                                     <div
                                                         key={order._id}
                                                         onClick={() => handleMyOrderClick(order)}
-                                                        className="bg-green-50 border border-green-200 rounded-lg p-3 hover:shadow-md transition-all duration-200 cursor-pointer"
+                                                        className="bg-green-50 border border-green-200 rounded-lg p-1.5 hover:shadow-sm transition-all duration-200 cursor-pointer"
                                                     >
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="font-semibold text-green-800 text-sm">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="font-semibold text-green-800 text-xs">
                                                                 {order.order_id}
                                                             </div>
-                                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
                                                                 Mine
                                                             </span>
                                                         </div>
                                                         <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                                                            <User size={12} />
+                                                            <User size={10} />
                                                             {order.leadName || 'No name'}
                                                         </div>
                                                         <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                                                            <Phone size={12} />
+                                                            <Phone size={10} />
                                                             {order.phone || 'No phone'}
-                                                        </div>
-                                                        <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                                                            <Calendar size={12} />
-                                                            {order.createdAt?.toString().split('T')[0] || 'No date'}
                                                         </div>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-xs text-gray-500">
                                                                 {order.text_status || 'No status'}
                                                             </span>
-                                                            <span className="font-semibold text-green-700 flex items-center gap-1">
+                                                            <span className="font-semibold text-green-700 text-xs">
                                                                 {formatCurrency(order.total)}
                                                             </span>
                                                         </div>
@@ -409,31 +376,30 @@ export default function Sidebar() {
                                                     <div
                                                         key={order._id}
                                                         onClick={() => handleNotMyOrderClick(order)}
-                                                        className="bg-orange-50 border border-orange-200 rounded-lg p-3 hover:shadow-md transition-all duration-200 cursor-pointer"
+                                                        className="bg-orange-50 border border-orange-200 rounded-lg p-1.5 hover:shadow-sm transition-all duration-200 cursor-pointer"
                                                     >
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="font-semibold text-orange-800 text-sm">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="font-semibold text-orange-800 text-xs">
                                                                 {order.order_id}
                                                             </div>
-                                                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full flex items-center gap-1">
-                                                                <Lock size={10} />
+                                                            <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                                                <Lock size={8} />
                                                                 {order.owner}
                                                             </span>
                                                         </div>
                                                         <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                                                            <User size={12} />
+                                                            <User size={10} />
                                                             {order.leadName || 'No name'}
                                                         </div>
                                                         <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                                                            <Phone size={12} />
+                                                            <Phone size={10} />
                                                             ••••••••••
                                                         </div>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-xs text-gray-500">
                                                                 {order.text_status || 'No status'}
                                                             </span>
-                                                            <span className="font-semibold text-orange-700 flex items-center gap-1">
-                                                                <DollarSign size={12} />
+                                                            <span className="font-semibold text-orange-700 text-xs">
                                                                 {formatCurrency(order.total)}
                                                             </span>
                                                         </div>
@@ -441,11 +407,11 @@ export default function Sidebar() {
                                                 ))}
                                             </>
                                         ) : searchResults && searchQuery ? (
-                                            <div className="text-center py-8 text-gray-500">
-                                                <div className="mb-2">
-                                                    <Search size={32} className="mx-auto text-gray-400" />
+                                            <div className="text-center py-4 text-gray-500">
+                                                <div className="mb-1">
+                                                    <Search size={20} className="mx-auto text-gray-400" />
                                                 </div>
-                                                <div className="text-sm">No orders found</div>
+                                                <div className="text-xs">No orders found</div>
                                             </div>
                                         ) : null}
                                     </div>
@@ -453,32 +419,42 @@ export default function Sidebar() {
                             )}
                         </div>
                     ) : (
-                        /* Collapsed sidebar */
+                        /* Ultra-compact collapsed sidebar */
                         <div className="p-2 space-y-2">
+                            {/* Claimed Orders Count - Compact */}
+                            {noteOfClaimedOrder && Array.isArray(noteOfClaimedOrder) && noteOfClaimedOrder.length > 0 && (
+                                <div className="text-center mb-2">
+                                    <div className="w-12 h-8 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center">
+                                        <span className="text-xs font-bold text-blue-700">{noteOfClaimedOrder.length}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">Orders</div>
+                                </div>
+                            )}
+
                             <button
                                 onClick={() => handleClick('new-order')}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'new-order'
-                                        ? 'bg-blue-100 text-blue-600'
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        ? 'bg-blue-50 text-blue-600 shadow-sm border border-blue-200'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                 }`}
                                 title="New Order"
                             >
-                                <Plus size={18} />
+                                <Plus size={16} />
                             </button>
 
                             <button
                                 onClick={() => handleClick('buffer')}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 relative ${
                                     activeTab === 'buffer'
-                                        ? 'bg-orange-100 text-orange-600'
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        ? 'bg-orange-50 text-orange-600 shadow-sm border border-orange-200'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                 }`}
                                 title="Buffer"
                             >
-                                <ClipboardList size={18} />
+                                <ClipboardList size={16} />
                                 {bufferCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                                    <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold">
                                         {bufferCount}
                                     </span>
                                 )}
@@ -486,26 +462,26 @@ export default function Sidebar() {
 
                             <button
                                 onClick={() => handleClick('my-orders')}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'my-orders'
-                                        ? 'bg-green-100 text-green-600'
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        ? 'bg-green-50 text-green-600 shadow-sm border border-green-200'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                 }`}
                                 title="My Orders"
                             >
-                                <Folder size={18} />
+                                <Folder size={16} />
                             </button>
 
                             <button
                                 onClick={() => handleClick('search')}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
                                     activeTab === 'search'
-                                        ? 'bg-purple-100 text-purple-600'
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        ? 'bg-purple-50 text-purple-600 shadow-sm border border-purple-200'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
                                 }`}
                                 title="Search"
                             >
-                                <Search size={18} />
+                                <Search size={16} />
                             </button>
                         </div>
                     )}
@@ -517,11 +493,9 @@ export default function Sidebar() {
                 <ConfidentialViewModal
                     isOpen={showConfidentialModal}
                     onConfirm={() => {
-                        console.log('🔍 onConfirm called');
                         handleConfirmView();
                     }}
                     onCancel={() => {
-                        console.log('🔍 onCancel called');
                         handleCancelView();
                     }}
                     orderInfo={selectedNotMyOrder ? {

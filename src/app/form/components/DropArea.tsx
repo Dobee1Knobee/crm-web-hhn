@@ -1,9 +1,9 @@
 // DropArea.tsx — адаптивные размеры + total не выходит за рамки
 "use client";
+import ErrorDisplay from "@/components/ErrorDisplay"
 import { useOrderStore } from "@/stores/orderStore"
 import { useDroppable } from "@dnd-kit/core"
 import {
-    AlertCircle,
     AlertTriangle,
     Check,
     ClipboardList,
@@ -24,6 +24,7 @@ import React, { useState } from "react"
 export interface ServiceItem {
     id: string;
     name: string;
+    value?: string;
     price: number;
     quantity?: number;
     orderId?: number;
@@ -384,14 +385,18 @@ export const DropArea: React.FC<DropAreaProps> = ({
     // Функция для получения расчетной цены (без учета кастомной)
     const getCalculatedPrice = () => {
         return items.reduce((total, service) => {
-            const servicePrice = service.name === "NO TV" && service.customPrice !== undefined
+            const servicePrice = (service.name === "NO TV" || service.name === "Custom" || service.value === "noTV" || service.value === "custom") && service.customPrice !== undefined
                 ? service.customPrice
                 : service.price;
             const serviceTotal = servicePrice * (service.quantity || 1);
 
             const subItemsTotal = service.subItems ?
-                service.subItems.reduce((subSum: number, subItem: ServiceItem) =>
-                    subSum + (subItem.price * (subItem.quantity || 1)), 0
+                service.subItems.reduce((subSum: number, subItem: ServiceItem) => {
+                    const subItemPrice = (subItem.name === "NO TV" || subItem.name === "Custom" || subItem.value === "noTV" || subItem.value === "custom") && subItem.customPrice !== undefined
+                        ? subItem.customPrice
+                        : subItem.price;
+                    return subSum + (subItemPrice * (subItem.quantity || 1));
+                }, 0
                 ) : 0;
 
             return total + serviceTotal + subItemsTotal;
@@ -467,36 +472,26 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     </h2>
 
                     {error && (
-                        <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                            <div className="text-red-600 font-semibold text-sm flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4" />
-                                {error}
-                            </div>
-                        </div>
+                        <ErrorDisplay 
+                            error={error} 
+                            variant="error" 
+                            className="mb-3"
+                        />
                     )}
 
                     {isAdditionalItem ? (
                         hasMainServices ? (
-                            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Additional services must be dropped on main services
-                                </div>
-                                <div className="text-red-500 text-xs">
-                                    Drop "{draggedItem?.name}" directly onto a main service card below, not in this zone
-                                </div>
-                            </div>
+                            <ErrorDisplay 
+                                error={`Additional services must be dropped on main services. Drop "${draggedItem?.name}" directly onto a main service card below, not in this zone.`}
+                                variant="warning"
+                                className="mb-3"
+                            />
                         ) : (
-                            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Please add main service first
-                                </div>
-                                <div className="text-red-500 text-xs">
-                                    Additional services like "{draggedItem?.name}" must be added to main services. Drop main service here
-                                    first.
-                                </div>
-                            </div>
+                            <ErrorDisplay 
+                                error={`Please add main service first. Additional services like "${draggedItem?.name}" must be added to main services. Drop main service here first.`}
+                                variant="warning"
+                                className="mb-3"
+                            />
                         )
                     ) : (
                         <div className="text-sm text-blue-600 font-medium mb-2">Main drag zone - drag main services here</div>
@@ -539,10 +534,14 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                             </div>
 
                                             <div className="flex items-center gap-4 mt-2">
-                                                <span className="text-green-600 font-semibold">
-                                                    ${item.price} × {item.quantity || 1} = $
-                                                    {(item.price * (item.quantity || 1)).toFixed(2)}
-                                                </span>
+                                                {(() => {
+                                                    const servicePrice = (item.name === "NO TV" || item.name === "Custom" || item.value === "noTV" || item.value === "custom") && item.customPrice !== undefined ? item.customPrice : item.price;
+                                                    return (
+                                                        <span className="text-green-600 font-semibold">
+                                                            ${servicePrice} × {item.quantity || 1} = ${(servicePrice * (item.quantity || 1)).toFixed(2)}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
 
@@ -578,14 +577,14 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         </div>
                                     </div>
 
-                                    {item.category === "main" && item.name !== "NO TV" && (
+                                    {item.category === "main" && item.name !== "NO TV" && item.value !== "noTV" && (
                                         <DiagonalInput
                                             mainItemId={item.orderId!}
                                             diagonals={item.diagonals}
                                             onUpdateDiagonals={onUpdateDiagonals}
                                         />
                                     )}
-                                    {item.category === "main" && item.name === "NO TV" && (
+                                    {item.category === "main" && (item.name === "NO TV" || item.name === "Custom" || item.value === "noTV" || item.value === "custom") && (
                                         <CustomPriceInput
                                             mainItemId={item.orderId!}
                                             customPrice={item.customPrice}

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
-import { Send, Users, AlertTriangle, ArrowRight, Shuffle } from "lucide-react";
-import { useOrderStore } from "@/stores/orderStore";
-import toast from "react-hot-toast";
+import { useOrderStore } from "@/stores/orderStore"
+import { AlertTriangle, ArrowRight, Send, Shuffle, Users } from "lucide-react"
+import React, { useEffect, useState } from 'react'
+import toast from "react-hot-toast"
 
 export type TransferOrderModalProps = {
     isOpen: boolean

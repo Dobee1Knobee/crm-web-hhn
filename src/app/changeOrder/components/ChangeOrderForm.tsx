@@ -1,12 +1,12 @@
 "use client"
-import CustomerInfo from "@/app/changeOrder/components/CustomerInfo";
-import DateAndTime from "@/app/changeOrder/components/DateAndTime";
-import {User} from "@/hooks/useUserByAt";
-import {useEffect} from "react";
-import OrderDescription from "@/app/changeOrder/components/OrderDescription";
-import ServicesWindow from "@/app/changeOrder/components/ServicesWindow";
-import Masters from "@/app/changeOrder/components/Masters";
-import {useOrderStore} from "@/stores/orderStore";
+import CustomerInfo from "@/app/changeOrder/components/CustomerInfo"
+import DateAndTime from "@/app/changeOrder/components/DateAndTime"
+import Masters from "@/app/changeOrder/components/Masters"
+import OrderDescription from "@/app/changeOrder/components/OrderDescription"
+import ServicesWindow from "@/app/changeOrder/components/ServicesWindow"
+import { User } from "@/hooks/useUserByAt"
+import { useOrderStore } from "@/stores/orderStore"
+import { useEffect } from "react"
 
 interface Props {
     user: User;

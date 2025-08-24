@@ -1,9 +1,9 @@
 // DropArea.tsx — адаптивные размеры + total не выходит за рамки
 "use client";
-import { useOrderStore } from "@/stores/orderStore";
-import { useDroppable } from "@dnd-kit/core";
+import ErrorDisplay from "@/components/ErrorDisplay"
+import { useOrderStore } from "@/stores/orderStore"
+import { useDroppable } from "@dnd-kit/core"
 import {
-    AlertCircle,
     AlertTriangle,
     Check,
     ClipboardList,
@@ -19,12 +19,13 @@ import {
     Tv,
     X,
     XCircle
-} from 'lucide-react';
-import React, { useState } from "react";
+} from 'lucide-react'
+import React, { useState } from "react"
 
 export interface ServiceItem {
     id: string;
     name: string;
+    value?: string;
     price: number;
     quantity?: number;
     orderId?: number;
@@ -367,11 +368,9 @@ export const DropArea: React.FC<DropAreaProps> = ({
     const {
         formData,
         currentUser,
-        currentTelegramOrder,
         isSaving,
         error,
         createOrder,
-
         validateForm,
         getTotalPrice,
         currentLeadID
@@ -379,8 +378,57 @@ export const DropArea: React.FC<DropAreaProps> = ({
 
     const [editingPrice, setEditingPrice] = useState<number | null>(null);
     const [tempPrice, setTempPrice] = useState("");
+    const [isAddingCustomPrice, setIsAddingCustomPrice] = useState(false);
+    const [customTotalPrice, setCustomTotalPrice] = useState("");
 
     const total = getTotalPrice();
+
+    // Функция для получения расчетной цены (без учета кастомной)
+    const getCalculatedPrice = () => {
+        return items.reduce((total, service) => {
+            const servicePrice = (service.name === "NO TV" || service.name === "Custom" || service.value === "noTV" || service.value === "custom") && service.customPrice !== undefined
+                ? service.customPrice
+                : service.price;
+            const serviceTotal = servicePrice * (service.quantity || 1);
+
+            const subItemsTotal = service.subItems ?
+                service.subItems.reduce((subSum: number, subItem: ServiceItem) => {
+                    const subItemPrice = (subItem.name === "NO TV" || subItem.name === "Custom" || subItem.value === "noTV" || subItem.value === "custom") && subItem.customPrice !== undefined
+                        ? subItem.customPrice
+                        : subItem.price;
+                    return subSum + (subItemPrice * (subItem.quantity || 1));
+                }, 0
+                ) : 0;
+
+            return total + serviceTotal + subItemsTotal;
+        }, 0);
+    };
+
+    const calculatedPrice = getCalculatedPrice();
+
+    const saveCustomTotalPrice = () => {
+        const newPrice = parseFloat(customTotalPrice);
+        if (!isNaN(newPrice) && newPrice >= 0) {
+            useOrderStore.getState().patchFormData({ custom: newPrice });
+            setIsAddingCustomPrice(false);
+            setCustomTotalPrice("");
+        }
+    };
+
+    const handleCustomPriceKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            saveCustomTotalPrice();
+        } else if (e.key === "Escape") {
+            setIsAddingCustomPrice(false);
+            setCustomTotalPrice("");
+        }
+    };
+
+    const resetCustomPrice = () => {
+        useOrderStore.getState().patchFormData({ custom: undefined });
+        setIsAddingCustomPrice(false);
+        setCustomTotalPrice("");
+    };
 
     const startPriceEdit = (orderId: number, currentPrice: number) => {
         setEditingPrice(orderId);
@@ -426,36 +474,26 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     </h2>
 
                     {error && (
-                        <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                            <div className="text-red-600 font-semibold text-sm flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4" />
-                                {error}
-                            </div>
-                        </div>
+                        <ErrorDisplay 
+                            error={error} 
+                            variant="error" 
+                            className="mb-3"
+                        />
                     )}
 
                     {isAdditionalItem ? (
                         hasMainServices ? (
-                            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Additional services must be dropped on main services
-                                </div>
-                                <div className="text-red-500 text-xs">
-                                    Drop "{draggedItem.name}" directly onto a main service card below, not in this zone
-                                </div>
-                            </div>
+                            <ErrorDisplay 
+                                error={`Additional services must be dropped on main services. Drop "${draggedItem.name}" directly onto a main service card below, not in this zone.`}
+                                variant="warning"
+                                className="mb-3"
+                            />
                         ) : (
-                            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
-                                <div className="text-red-600 font-semibold text-sm mb-1 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Please add main service first
-                                </div>
-                                <div className="text-red-500 text-xs">
-                                    Additional services like "{draggedItem?.name}" must be added to main services. Drop main service here
-                                    first.
-                                </div>
-                            </div>
+                            <ErrorDisplay 
+                                error={`Please add main service first. Additional services like "${draggedItem?.name}" must be added to main services. Drop main service here first.`}
+                                variant="warning"
+                                className="mb-3"
+                            />
                         )
                     ) : (
                         <div className="text-sm text-blue-600 font-medium mb-2">Main drag zone - drag main services here</div>
@@ -498,10 +536,16 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                             </div>
 
                                             <div className="flex items-center gap-4 mt-2">
-                                                <span className="text-green-600 font-semibold">
-                                                    ${item.price} × {item.quantity || 1} = $
-                                                    {(item.price * (item.quantity || 1)).toFixed(2)}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    {(() => {
+                                                        const servicePrice = (item.name === "NO TV" || item.name === "Custom" || item.value === "noTV" || item.value === "custom") && item.customPrice !== undefined ? item.customPrice : item.price;
+                                                        return (
+                                                            <span className="text-green-600 font-semibold">
+                                                                ${servicePrice} × {item.quantity || 1} = ${(servicePrice * (item.quantity || 1)).toFixed(2)}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -537,14 +581,14 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                         </div>
                                     </div>
 
-                                    {item.category === "main" && item.name !== "NO TV" && (
+                                    {item.category === "main" && item.name !== "NO TV" && item.value !== "noTV" && (
                                         <DiagonalInput
                                             mainItemId={item.orderId!}
                                             diagonals={item.diagonals}
                                             onUpdateDiagonals={onUpdateDiagonals}
                                         />
                                     )}
-                                    {item.category === "main" && item.name === "NO TV" && (
+                                    {item.category === "main" && (item.name === "NO TV" || item.name === "Custom" || item.value === "noTV" || item.value === "custom") && (
                                         <CustomPriceInput
                                             mainItemId={item.orderId!}
                                             customPrice={item.customPrice}
@@ -569,9 +613,62 @@ export const DropArea: React.FC<DropAreaProps> = ({
                 {/* Нижняя часть - Total и кнопки */}
                 <div className="flex-shrink-0 border-t border-gray-200 pt-4 mt-4">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl text-center">
-                        <div className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
-                            Total: ${total.toFixed(2)}
-                        </div>
+                        {isAddingCustomPrice ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <input
+                                    type="number"
+                                    value={customTotalPrice}
+                                    onChange={(e) => setCustomTotalPrice(e.target.value)}
+                                    onKeyPress={handleCustomPriceKeyPress}
+                                    onBlur={saveCustomTotalPrice}
+                                    placeholder={`${total.toFixed(2)}`}
+                                    className="text-xl sm:text-2xl font-bold bg-white text-blue-600 px-3 py-1 rounded-lg text-center w-32 focus:outline-none focus:ring-2 focus:ring-white"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={saveCustomTotalPrice}
+                                    className="bg-white text-blue-600 px-2 py-1 rounded text-sm hover:bg-blue-50"
+                                >
+                                    ✓
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsAddingCustomPrice(false);
+                                        setCustomTotalPrice("");
+                                    }}
+                                    className="bg-white text-red-600 px-2 py-1 rounded text-sm hover:bg-blue-50"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ) : (
+                            <div 
+                                className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" 
+                                onClick={() => setIsAddingCustomPrice(true)}
+                                title="Click to set custom total price"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span>Total: ${formData.custom !== undefined ? formData.custom.toFixed(2) : total.toFixed(2)}</span>
+                                    {formData.custom !== undefined && (
+                                        <>
+                                            <span className="text-sm opacity-75">
+                                                (calc: ${calculatedPrice.toFixed(2)})
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    resetCustomPrice();
+                                                }}
+                                                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 py-1 rounded text-xs transition-all"
+                                                title="Reset to calculated price"
+                                            >
+                                                ↺
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="text-xs sm:text-sm mt-1 opacity-90 flex items-center justify-center gap-1">
 
                                 <>
