@@ -13,6 +13,8 @@ export interface DraggableItemProps {
 export function DraggableItem({ item, category, isActive = false }: DraggableItemProps) {
     const itemId = item.value || item.label;
 
+    console.log('🎯 Creating DraggableItem (changeOrder):', { itemId, item, category });
+
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: itemId,
         data: {
@@ -25,6 +27,8 @@ export function DraggableItem({ item, category, isActive = false }: DraggableIte
             }
         }
     });
+
+    console.log('🎯 DraggableItem state (changeOrder):', { isDragging, attributes, listeners });
 
     // Определяем цвета для разных категорий
     const getCategoryStyles = (category: string) => {

@@ -14,7 +14,6 @@ import {
     Paperclip,
     Plus,
     Save,
-    Send,
     Trash2,
     Tv,
     X,
@@ -705,9 +704,8 @@ export const DropArea: React.FC<DropAreaProps> = ({
 
                                 <>
                                     <Save className="w-3 h-3" />
-                                    Save = Create final order ·
-                                    <Send className="w-3 h-3" />
-                                    Buffer = Share with team
+                                    Save = Create final order 
+                               
                                 </>
 
                         </div>

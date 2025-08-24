@@ -9,7 +9,11 @@ import "@/app/global.css";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useUserByAt } from "@/hooks/useUserByAt";
 import { useOrderStore } from "@/stores/orderStore";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core";
+import {
+    DndContext, DragEndEvent, DragOverlay, DragStartEvent, KeyboardSensor, PointerSensor,
+    TouchSensor, useSensor,
+    useSensors
+} from "@dnd-kit/core";
 import { useState } from "react";
 
 // Временный тип для совместимости с существующим DropArea
@@ -50,12 +54,37 @@ export default function ChangeOrder() {
     const [activeService, setActiveService] = useState<ServiceItem | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
 
+    // 🎯 Настройка сенсоров для drag & drop
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8, // Минимальное расстояние для активации drag
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 100, // Небольшая задержка для touch устройств
+                tolerance: 5, // Толерантность к движению
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: (event, args) => {
+                return {
+                    x: 0,
+                    y: 0,
+                };
+            },
+        })
+    );
+
     // Устанавливаем пользователя в store при загрузке
 
 
     // Обработчик начала перетаскивания
     function handleDragStart(event: DragStartEvent) {
+        console.log('🚀 Drag started (changeOrder):', event);
         const service = event.active.data.current?.service as ServiceItem;
+        console.log('📦 Service data (changeOrder):', service);
         setActiveService(service);
         setActiveId(event.active.id as string);
     }
@@ -63,12 +92,15 @@ export default function ChangeOrder() {
     // Обработчик окончания перетаскивания
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
-        console.log('🏁 Drag ended:', { overId: over?.id, activeService });
+        console.log('🏁 Drag ended (changeOrder):', { overId: over?.id, activeService, event });
 
         setActiveService(null);
         setActiveId(null);
 
-        if (!over) return;
+        if (!over) {
+            console.log('❌ No drop target (changeOrder)');
+            return;
+        }
 
         const service = active.data.current?.service as ServiceItem;
         if (!service) return;
@@ -102,8 +134,9 @@ export default function ChangeOrder() {
             <DndContext
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                modifiers={[]}
-                sensors={[]}
+                onDragOver={(event) => console.log('🔄 Drag over (changeOrder):', event)}
+                onDragMove={(event) => console.log('📱 Drag move (changeOrder):', event)}
+                sensors={sensors}
                 autoScroll={false}
             >
                 <div className="h-screen flex bg-gray-50 overflow-hidden">
@@ -163,7 +196,6 @@ export default function ChangeOrder() {
                             }`}>
                                 {activeService.category}
                             </span>
-                            <div className="absolute -inset-1 bg-blue-400 rounded-lg opacity-30 animate-pulse"></div>
                         </div>
                     ) : null}
                 </DragOverlay>

@@ -1,17 +1,21 @@
 // LoginForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ
 "use client";
-import { DropArea } from "@/app/form/components/DropArea";
-import Header from "@/app/form/components/Header";
-import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm";
-import OrderForm from "@/app/form/components/OrderForm/OrderForm";
-import Sidebar from "@/app/form/components/Sidebar";
-import StatusPills from "@/app/form/components/StatusPills";
-import "@/app/global.css";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useUserByAt } from "@/hooks/useUserByAt";
-import { useOrderStore } from "@/stores/orderStore";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core";
-import { useState } from "react";
+import { DropArea } from "@/app/form/components/DropArea"
+import Header from "@/app/form/components/Header"
+import ButtonResetForm from "@/app/form/components/OrderForm/components/ButtonResetForm"
+import OrderForm from "@/app/form/components/OrderForm/OrderForm"
+import Sidebar from "@/app/form/components/Sidebar"
+import StatusPills from "@/app/form/components/StatusPills"
+import "@/app/global.css"
+import ProtectedRoute from "@/components/ProtectedRoute"
+import { useUserByAt } from "@/hooks/useUserByAt"
+import { useOrderStore } from "@/stores/orderStore"
+import {
+    DndContext, DragEndEvent, DragOverlay, DragStartEvent, KeyboardSensor, PointerSensor,
+    TouchSensor, useSensor,
+    useSensors
+} from "@dnd-kit/core"
+import { useState } from "react"
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -27,52 +31,68 @@ interface ServiceItem {
     customPrice?: number;
 }
 
-export default function Home() {
-    const at = "devapi1";
-    const user = useUserByAt("devapi1");
-
-    // 🏪 Используем ТОЛЬКО store, убираем локальное состояние
-    const {
-        selectedServices,
-        addService,
-        removeService,
-        updateServiceQuantity,
-        updateServicePrice,
-        updateServiceDiagonals,
+export default function FormPage() {
+    const at = "devapi1"; // Временный AT для разработки
+    const user = useUserByAt(at);
+    const { 
+        selectedServices, 
+        addService, 
+        removeService, 
+        updateServiceQuantity, 
+        updateServicePrice, 
+        updateServiceDiagonals, 
         updateServiceCustomPrice,
         updateSubServiceQuantity,
-        removeSubService,
-        resetForm,
-        currentLeadID,
-        getTotalPrice,
-        setCurrentUser,
-        formData,
-        
+        removeSubService
     } = useOrderStore();
 
-    // Состояние только для drag & drop UI
     const [activeService, setActiveService] = useState<ServiceItem | null>(null);
-    const [activeId, setActiveId] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState('new-order');
+
+    // 🎯 Настройка сенсоров для drag & drop
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8, // Минимальное расстояние для активации drag
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 100, // Небольшая задержка для touch устройств
+                tolerance: 5, // Толерантность к движению
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: (event, args) => {
+                return {
+                    x: 0,
+                    y: 0,
+                };
+            },
+        })
+    );
 
     // Устанавливаем пользователя в store при загрузке
 
-
     // Обработчик начала перетаскивания
     function handleDragStart(event: DragStartEvent) {
+        console.log('🚀 Drag started:', event);
         const service = event.active.data.current?.service as ServiceItem;
+        console.log('📦 Service data:', service);
         setActiveService(service);
-        setActiveId(event.active.id as string);
     }
 
     // Обработчик окончания перетаскивания
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
-        console.log('🏁 Drag ended:', { overId: over?.id, activeService });
+        console.log('🏁 Drag ended:', { overId: over?.id, activeService, event });
 
         setActiveService(null);
-        setActiveId(null);
 
-        if (!over) return;
+        if (!over) {
+            console.log('❌ No drop target');
+            return;
+        }
 
         const service = active.data.current?.service as ServiceItem;
         if (!service) return;
@@ -106,8 +126,9 @@ export default function Home() {
             <DndContext
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                modifiers={[]}
-                sensors={[]}
+                onDragOver={(event) => console.log('🔄 Drag over:', event)}
+                onDragMove={(event) => console.log('📱 Drag move:', event)}
+                sensors={sensors}
                 autoScroll={false}
             >
                 <div className="h-screen flex bg-gray-50 overflow-hidden">
@@ -116,6 +137,9 @@ export default function Home() {
                     <div className="flex-1 flex flex-col">
                         <Header />
                         <StatusPills />
+
+                        {/* 🧪 Debug Test Area */}
+                   
 
                         <div className="flex-1 flex overflow-hidden">
                             {/* Left side - Form */}
