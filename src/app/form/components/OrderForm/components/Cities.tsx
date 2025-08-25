@@ -1,7 +1,7 @@
 // Cities.tsx - ИНТЕГРИРОВАННАЯ ВЕРСИЯ
-import { useGetCities } from "@/hooks/useCitiesByTeam";
-import { useOrderStore } from '@/stores/orderStore';
-import { useEffect } from "react";
+import { useGetCities } from "@/hooks/useCitiesByTeam"
+import { useOrderStore } from '@/stores/orderStore'
+import { useEffect } from "react"
 
 interface City {
     _id: string;
@@ -23,7 +23,6 @@ export default function Cities({ team }: CitiesProps) {
         formData,
         updateFormData,     
         currentUser,
-        isWorkingOnTelegramOrder,
         getCorrectCity
     } = useOrderStore();
 
@@ -57,7 +56,7 @@ export default function Cities({ team }: CitiesProps) {
             const currentCity = formData.city;
             
             // Авто-выбор только для начального состояния или если город действительно пустой
-            if (!currentCity || currentCity === 'New_York') {
+            if (!currentCity || currentCity === cities[0].name) {
                 const firstCity = cities[0] as City;
                 if (firstCity && firstCity.name) {
                     console.log('🏙️ Auto-selecting first available city:', firstCity.name);
@@ -110,18 +109,11 @@ export default function Cities({ team }: CitiesProps) {
                 <span className="mr-2">📍</span>
                 We think{' '}
                 <span className="font-bold mx-1 text-green-900">
-                    {formData.city || 'New_York'}
+                    {formData.city || cities[0]?.name}
                 </span>{' '}
                 fits you — tap to change
 
-                {/* 📱 Индикатор Telegram заказа */}
-                {isWorkingOnTelegramOrder && (
-                    <span className="ml-auto">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            📱 Telegram Order
-                        </span>
-                    </span>
-                )}
+             
             </div>
 
             {/* 👥 Информация о команде */}

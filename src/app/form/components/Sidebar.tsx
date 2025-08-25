@@ -56,7 +56,10 @@ export default function Sidebar() {
     const noteOfClaimedOrder = useOrderStore(state => state.noteOfClaimedOrder);
     const clearClaimedOrders = useOrderStore(state => state.clearClaimedOrders);
     const syncClaimedOrders = useOrderStore(state => state.syncClaimedOrders);
-
+    const { shift, toggleShift } = useOrderStore();
+    const handleToggle = () => {
+        toggleShift();
+    };
     // Загрузка активного таба
     useEffect(() => {
         const saved = localStorage.getItem('activeTab') as
@@ -201,7 +204,8 @@ export default function Sidebar() {
                         )}
                     </button>
                 </div>
-
+  
+               
                 <div className="flex-1 overflow-hidden">
                     {isExpanded ? (
                         <div className="p-2 space-y-2 h-full flex flex-col">
@@ -498,6 +502,7 @@ export default function Sidebar() {
                     onCancel={() => {
                         handleCancelView();
                     }}
+                    orderId={selectedNotMyOrder?.order_id}
                     orderInfo={selectedNotMyOrder ? {
                         order_id: selectedNotMyOrder.order_id,
                         owner: selectedNotMyOrder.owner,

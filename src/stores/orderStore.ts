@@ -26,6 +26,15 @@ if (!/^https?:\/\//i.test(SOCKET_URL)) {
     console.error('⚠ Некорректный NEXT_PUBLIC_SOCKET_URL:', SOCKET_URL);
 }
 
+const getShiftFromStorage = (): boolean => {
+    try {
+        const storedShift = sessionStorage.getItem('shift');
+        return storedShift ? JSON.parse(storedShift) : false;
+    } catch (error) {
+        console.error('Ошибка при восстановлении shift из sessionStorage:', error);
+        return false;
+    }
+};
 // ===== ИНТЕРФЕЙС ДАННЫХ ФОРМЫ =====
 export interface FormData {
     customerName: string;
@@ -185,6 +194,7 @@ interface BufferState {
 // ===== ИНТЕРФЕЙС STORE =====
 export interface OrderState extends BufferState {
     // ===== ДАННЫЕ =====
+    shift: boolean;
     currentOrder: Order | null;
     formData: FormData;
     selectedServices: ServiceItem[];
@@ -349,6 +359,9 @@ export interface OrderState extends BufferState {
     searchOrders: (query: string) => Promise<void>;
     clearSearchResults: () => void;
     viewNotMyOrder: (orderId: string) => Promise<void>;
+
+    // ===== СМЕНА =====
+    toggleShift: () => void;
 }
 
 // ===== КАСТОМНЫЕ ИНТЕРФЕЙСЫ =====
@@ -376,7 +389,7 @@ const initialFormData: FormData = {
     zipCode: '',
     date: '',
     time: '',
-    city: 'New_York',
+    city: '',
     masterId: '',
     masterName: '',
     description: '',
@@ -391,6 +404,7 @@ export const useOrderStore = create<OrderState>()(
             // ===== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ =====
             currentOrder: null,
             addressFitNotification: null,
+            shift: getShiftFromStorage(),
             formData: initialFormData,
             selectedServices: [],
             orders: [],
@@ -475,13 +489,15 @@ export const useOrderStore = create<OrderState>()(
             // ===== 🆕 WEBSOCKET ДЕЙСТВИЯ =====
             connectSocket: async () => {
                 const { currentUser, socket: existingSocket } = get();
-                if (get().isSocketConnected) {
-                    console.log('⚠ Уже подключен или идет подключение');
+                
+                // Глобальная блокировка - если уже есть активное соединение, не создаем новое
+                if ((window as any).__activeSocketConnection) {
+                    console.log('⚠ Глобально блокируем создание нового WebSocket соединения');
                     return;
                 }
-            
-                if (!currentUser?.userId || !currentUser?.team || !currentUser?.userName) {
-                    console.log('⚠ Нет данных пользователя для WebSocket');
+
+                if (get().isSocketConnected) {
+                    console.log('⚠ Уже подключен или идет подключение');
                     return;
                 }
             
@@ -494,6 +510,10 @@ export const useOrderStore = create<OrderState>()(
                     console.log('⚡ WebSocket уже подключен');
                     return;
                 }
+
+                // Устанавливаем глобальный флаг
+                (window as any).__activeSocketConnection = true;
+                console.log(' Устанавливаем глобальную блокировку WebSocket');
 
                 // Проверяем доступность сервера перед подключением
                 try {
@@ -511,6 +531,7 @@ export const useOrderStore = create<OrderState>()(
                 } catch (error) {
                     console.error('❌ Сервер недоступен:', error);
                     toast.error('Сервер временно недоступен. Попробуйте позже.');
+                    (window as any).__activeSocketConnection = false; // Сбрасываем флаг
                     return;
                 }
 
@@ -546,7 +567,7 @@ export const useOrderStore = create<OrderState>()(
                 // Обработчики событий
                 socket.on('connect', () => {
                     console.log('✅ WebSocket подключен!', socket.id);
-                    console.log('🔗 Connection details:', {
+                    console.log(' Connection details:', {
                         url: SOCKET_URL,
                         transport: socket.io.engine.transport.name,
                         readyState: socket.readyState,
@@ -569,7 +590,7 @@ export const useOrderStore = create<OrderState>()(
                     });
 
                     // Регистрируем менеджера для таргетных уведомлений
-                    console.log('📝 Регистрируем менеджера для таргетных уведомлений:', {
+                    console.log(' Регистрируем менеджера для таргетных уведомлений:', {
                         manager_id: currentUser.manager_id,
                         at: currentUser.userAt,
                         user_id: currentUser.userId,
@@ -602,6 +623,7 @@ export const useOrderStore = create<OrderState>()(
                     toast.error(`Ошибка подключения: ${error.message || 'Не удалось подключиться к серверу'}`);
                     
                     set({ isSocketConnected: false });
+                    (window as any).__activeSocketConnection = false; // Сбрасываем флаг
                 });
 
                 // Добавляем обработчик reconnect
@@ -613,7 +635,7 @@ export const useOrderStore = create<OrderState>()(
 
                 // Добавляем обработчик reconnect_attempt
                 socket.on('reconnect_attempt', (attemptNumber: number) => {
-                    console.log(`🔄 Попытка переподключения #${attemptNumber}`);
+                    console.log(` Попытка переподключения #${attemptNumber}`);
                 });
 
                 // Добавляем обработчик reconnect_error
@@ -626,6 +648,7 @@ export const useOrderStore = create<OrderState>()(
                     console.error('❌ Не удалось переподключиться после всех попыток');
                     toast.error('Не удалось восстановить соединение. Проверьте интернет и попробуйте обновить страницу.');
                     set({ isSocketConnected: false });
+                    (window as any).__activeSocketConnection = false; // Сбрасываем флаг
                 });
 
                 socket.on('team-joined', (data: any) => {
@@ -677,38 +700,82 @@ export const useOrderStore = create<OrderState>()(
                     }
                 });
 
+                // Добавляем переменную для отслеживания последнего события
+                let lastOrderEvent: string | null = null;
+                let orderEventTimeout: NodeJS.Timeout | null = null;
+
                 socket.on('new-order-in-buffer', (data: any) => {
-                    toast.success('🔔 НОВЫЙ ЗАКАЗ В БУФЕРЕ!');
-                    const notification = {
-                        id: Date.now(),
-                        type: 'new-order',
-                        title: 'Новый заказ в буфере',
-                        message: data.message,
-                        form_id: data.order_id || '', // Добавляем form_id
+                    // Логируем ВСЕ входящие события
+                    console.log('🔍 ВХОДЯЩЕЕ СОБЫТИЕ new-order-in-buffer:', {
                         order_id: data.order_id,
-                        transferred_from: data.transferred_from,
-                        timestamp: new Date(),
-                        read: false
-                    };
+                        socket_id: socket.id,
+                        timestamp: new Date().toISOString(),
+                        window_flag: (window as any).__processingOrderEvent,
+                        local_flag: lastOrderEvent
+                    });
 
-                    // Добавляем уведомление в store
-                    set(state => ({
-                        notifications: [notification, ...state.notifications]
-                    }));
-
-                    // Браузерное уведомление (если разрешено)
-                    if (Notification.permission === 'granted') {
-                        new Notification(notification.title, {
-                            body: notification.message,
-                            icon: '/favicon.ico'
-                        });
+                    // Глобальная проверка - если событие уже обрабатывается, пропускаем
+                    if ((window as any).__processingOrderEvent === data.order_id) {
+                        console.log('⚠ Глобально блокируем дублирующее событие:', data.order_id);
+                        return;
                     }
 
-                    // Автоматически обновляем буфер
-                    get().refreshBuffer();
+                    // Проверяем, не обрабатывали ли мы уже это событие локально
+                    if (lastOrderEvent === data.order_id) {
+                        console.log('⚠ Локально блокируем дублирующее событие:', data.order_id);
+                        return;
+                    }
+
+                    // Устанавливаем глобальный флаг
+                    (window as any).__processingOrderEvent = data.order_id;
+                    
+                    // Сразу запоминаем событие локально
+                    lastOrderEvent = data.order_id;
+
+                    // Очищаем предыдущий таймаут если есть
+                    if (orderEventTimeout) {
+                        clearTimeout(orderEventTimeout);
+                    }
+
+                    // Устанавливаем задержку в 500мс
+                    orderEventTimeout = setTimeout(() => {
+                        console.log('🔔 Обрабатываем событие new-order-in-buffer после задержки:', data);
+                        
+                        toast.success(' НОВЫЙ ЗАКАЗ В БУФЕРЕ!');
+                        const notification = {
+                            id: Date.now(),
+                            type: 'new-order',
+                            title: 'Новый заказ в буфере',
+                            message: data.message,
+                            form_id: data.order_id || '', // Добавляем form_id
+                            order_id: data.order_id,
+                            transferred_from: data.transferred_from,
+                            timestamp: new Date(),
+                            read: false
+                        };
+
+                        // Добавляем уведомление в store
+                        set(state => ({
+                            notifications: [notification, ...state.notifications]
+                        }));
+
+                        // Браузерное уведомление (если разрешено)
+                        if (Notification.permission === 'granted') {
+                            new Notification(notification.title, {
+                                body: notification.message,
+                                icon: '/favicon.ico'
+                            });
+                        }
+
+                        // Автоматически обновляем буфер
+                        get().refreshBuffer();
+
+                        // Очищаем глобальный флаг через некоторое время
+                        setTimeout(() => {
+                            (window as any).__processingOrderEvent = null;
+                        }, 1000);
+                    }, 500);
                 });
-
-
 
                 socket.on('error', (error: any) => {
                     console.error('WebSocket ошибка:', error);
@@ -719,7 +786,7 @@ export const useOrderStore = create<OrderState>()(
             const heartbeatInterval = setInterval(() => {
                 if (socket.connected) {
                     socket.emit('keep-alive');
-                    console.log('�� Keep-alive sent to server');
+                    console.log(' Keep-alive sent to server');
                 } else {
                     console.log('⚠ Socket не подключен, пропускаем heartbeat');
                 }
@@ -743,7 +810,7 @@ export const useOrderStore = create<OrderState>()(
 
                 // Обработчик pong от сервера
                 socket.on('pong', () => {
-                    console.log('🏓 Pong received from server');
+                    console.log(' Pong received from server');
                     clearTimeout(heartbeatTimeout);
                 });
 
@@ -752,6 +819,7 @@ export const useOrderStore = create<OrderState>()(
                 clearTimeout(heartbeatTimeout);
                 console.log('⚠ WebSocket отключен, причина:', reason);
                 set({ isSocketConnected: false });
+                (window as any).__activeSocketConnection = false; // Сбрасываем флаг
                 
                 // Более информативные сообщения
                 if (reason === 'io server disconnect') {
@@ -1057,7 +1125,35 @@ export const useOrderStore = create<OrderState>()(
                     return [];
                 }
             },
-
+            toggleShift: async () => {
+                const currentShift = get().shift;
+                const at = get().currentUser?.userAt;
+                
+                // Определяем какой эндпоинт вызывать
+                const endpoint = currentShift 
+                    ? 'https://bot-crm-backend-756832582185.us-central1.run.app/api/user/turn-off-shift'
+                    : 'https://bot-crm-backend-756832582185.us-central1.run.app/api/user/turn-on-shift';
+                
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ at: at })
+                });
+                
+                if (!res.ok) {
+                    throw new Error('Failed to toggle shift');
+                }
+                
+                const result = await res.json();
+                console.log('✅ Shift toggled:', result);
+                
+                // Обновляем состояние и sessionStorage
+                const newShiftState = !currentShift;
+                set({ shift: newShiftState });
+                setSessionStorageJSON('shift', newShiftState);
+                
+                return result;
+            },
             // Получение заклейменных заказов
             getNoteOfClaimedOrder: async (form_id: string): Promise<NoteOfClaimedOrder | undefined> => {
                 try {
@@ -1636,7 +1732,7 @@ export const useOrderStore = create<OrderState>()(
                             const subItemPrice = (subItem.name === "NO TV" || subItem.name === "Custom" || subItem.value === "noTV" || subItem.value === "custom") && subItem.customPrice !== undefined
                                 ? subItem.customPrice
                                 : subItem.price;
-                            return subSum + (subItemPrice * (subItem.quantity || 1));
+                            return (subSum + (subItemPrice * (subItem.quantity || 1))) * (service.quantity || 1);
                         }, 0
                         ) : 0;
 
@@ -1764,7 +1860,7 @@ export const useOrderStore = create<OrderState>()(
                         // Устанавливаем флаг для перехода
                         set({ shouldRedirectToMyOrders: true });
                         
-                    }, 3000); // 3 секунды задержки
+                    }, 1000); // 3 секунды задержки
 
                     return createdOrder;
 
@@ -2175,18 +2271,17 @@ export const useOrderStore = create<OrderState>()(
                     const at = currentUser.userAt.startsWith('@')
                         ? currentUser.userAt.slice(1)
                         : currentUser.userAt;
-
+                    console.log(at,orderId);
+        
                     // Логируем просмотр чужого заказа
                     await fetch(
-                        'https://bot-crm-backend-756832582185.us-central1.run.app/api/orders/log-view',
+                        'https://bot-crm-backend-756832582185.us-central1.run.app/api/user/countNotOwn',
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                orderId: orderId,
-                                viewedBy: at,
-                                viewedAt: new Date().toISOString(),
-                                action: 'view_not_my_order'
+                                order_id: orderId,
+                                at: at,
                             })
                         }
                     );

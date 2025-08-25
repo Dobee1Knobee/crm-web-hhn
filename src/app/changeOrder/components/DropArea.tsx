@@ -395,7 +395,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                     const subItemPrice = (subItem.name === "NO TV" || subItem.name === "Custom" || subItem.value === "noTV" || subItem.value === "custom") && subItem.customPrice !== undefined
                         ? subItem.customPrice
                         : subItem.price;
-                    return subSum + (subItemPrice * (subItem.quantity || 1));
+                        return (subSum + (subItemPrice * (subItem.quantity || 1))) * (service.quantity || 1);
                 }, 0
                 ) : 0;
 
@@ -647,24 +647,31 @@ export const DropArea: React.FC<DropAreaProps> = ({
                                 title="Click to set custom total price"
                             >
                                 <div className="flex items-center gap-2">
-                                    <span>Total: ${formData.custom !== undefined ? formData.custom.toFixed(2) : total.toFixed(2)}</span>
+                                    <span>Total: ${formData.custom! > 0 ? formData.custom!.toFixed(2) : total.toFixed(2)}</span>
                                     {formData.custom !== undefined && (
                                         <>
                                             <span className="text-sm opacity-75">
-                                                (calc: ${calculatedPrice.toFixed(2)})
+                                                {formData.custom! > 0 && (
+                                                    <>
+                                                    <span className="text-sm opacity-75">
+                                                        (calc: ${calculatedPrice.toFixed(2)})
+                                                    </span>
+                                                        <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            resetCustomPrice();
+                                                        }}
+                                                        className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 py-1 rounded text-xs transition-all"
+                                                        title="Reset to calculated price"
+                                                    >
+                                                        ↺
+                                                    </button>
+                                                    </>
+                                                )}
                                             </span>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    resetCustomPrice();
-                                                }}
-                                                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 py-1 rounded text-xs transition-all"
-                                                title="Reset to calculated price"
-                                            >
-                                                ↺
-                                            </button>
+                                        
                                         </>
-                                    )}
+                                    ) }
                                 </div>
                             </div>
                         )}
@@ -680,6 +687,7 @@ export const DropArea: React.FC<DropAreaProps> = ({
                             <button
                                 onClick={async () => {
                                    useOrderStore.getState().updateOrder(currentLeadID);
+                                   useOrderStore.getState().resetForm()
 
                                 }}
                                 className={`col-span-12 py-3 rounded-2xl border shadow transition flex items-center justify-center gap-2 ${

@@ -1,20 +1,20 @@
 // LoginForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ДУБЛИРОВАНИЯ
 "use client";
-import { DropArea } from "@/app/changeOrder/components/DropArea";
-import Header from "@/app/form/components/Header";
-import OrderForm from "@/app/form/components/OrderForm/OrderForm";
-import Sidebar from "@/app/form/components/Sidebar";
-import StatusPills from "@/app/form/components/StatusPills";
-import "@/app/global.css";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useUserByAt } from "@/hooks/useUserByAt";
-import { useOrderStore } from "@/stores/orderStore";
+import { DropArea } from "@/app/changeOrder/components/DropArea"
+import Header from "@/app/form/components/Header"
+import OrderForm from "@/app/form/components/OrderForm/OrderForm"
+import Sidebar from "@/app/form/components/Sidebar"
+import StatusPills from "@/app/form/components/StatusPills"
+import "@/app/global.css"
+import ProtectedRoute from "@/components/ProtectedRoute"
+import { useUserByAt } from "@/hooks/useUserByAt"
+import { useOrderStore } from "@/stores/orderStore"
 import {
     DndContext, DragEndEvent, DragOverlay, DragStartEvent, KeyboardSensor, PointerSensor,
     TouchSensor, useSensor,
     useSensors
-} from "@dnd-kit/core";
-import { useState } from "react";
+} from "@dnd-kit/core"
+import { useState } from "react"
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -48,6 +48,8 @@ export default function ChangeOrder() {
         getTotalPrice,
         setCurrentUser,
         formData,
+        resetForm,
+        currentLeadID,
     } = useOrderStore();
 
     // Состояние только для drag & drop UI

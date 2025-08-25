@@ -16,9 +16,9 @@ export default function ConfidentialViewModal({
     isOpen,
     onConfirm,
     onCancel,
+    
     orderInfo
 }: ConfidentialViewModalProps) {
-
     // Закрытие по Escape
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {

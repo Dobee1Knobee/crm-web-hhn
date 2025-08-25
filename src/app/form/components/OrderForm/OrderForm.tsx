@@ -37,6 +37,7 @@ export default function OrderForm({ leadId }: Props) {
     }, [team, teamId, updateFormData]);
 
     useEffect(() => {
+        
         console.log(team)
     })
 
