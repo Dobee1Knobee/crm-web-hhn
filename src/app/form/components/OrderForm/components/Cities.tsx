@@ -75,6 +75,7 @@ export default function Cities({ team }: CitiesProps) {
             
             if (!cityExists) {
                 console.log('⚠️ Current city not in available cities list:', formData.city);
+                updateFormData('city', formData.city);
                 console.log('🏙️ Available cities:', cities.map(c => c.name));
             }
         }
@@ -104,7 +105,7 @@ export default function Cities({ team }: CitiesProps) {
 
     return (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow-lg p-6 border border-green-200 m-9 max-w-xl">
-            {/* 📍 Заголовок с текущим выбором */}
+            {/*  Заголовок с текущим выбором */}
             <div className="text-sm text-green-800 mb-4 font-medium flex items-center">
                 <span className="mr-2">📍</span>
                 We think{' '}
@@ -116,13 +117,13 @@ export default function Cities({ team }: CitiesProps) {
              
             </div>
 
-            {/* 👥 Информация о команде */}
+            {/* Информация о команде */}
             <div className="text-xs text-green-600 mb-3 flex items-center">
                 <span className="mr-1">👥</span>
                 Team {team} cities ({cities?.length || 0} available)
             </div>
 
-            {/* 🏙️ Сетка городов */}
+            {/* Сетка городов */}
             <div className="grid grid-cols-4 gap-3">
                 {cities?.map((city: City, index: number) => {
                     // Проверяем, что city это объект и у него есть name
@@ -149,12 +150,12 @@ export default function Cities({ team }: CitiesProps) {
                             `}
                             title={`Select ${cityName}`}
                         >
-                            {/* ✨ Анимированный фон для выбранного */}
+                            {/*  Анимированный фон для выбранного */}
                             {isSelected && (
                                 <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-green-600 animate-pulse"></div>
                             )}
 
-                            {/* 📍 Иконка для выбранного города */}
+                            {/*  Иконка для выбранного города */}
                             <div className="relative z-10 flex items-center justify-center">
                                 {isSelected && <span className="mr-1">📍</span>}
                                 {cityName}
@@ -165,7 +166,7 @@ export default function Cities({ team }: CitiesProps) {
                 })}
             </div>
 
-            {/* 📊 Дополнительная информация */}
+            {/*  Дополнительная информация */}
             {formData.city && (
                 <div className="mt-4 p-3 bg-white bg-opacity-50 rounded-lg border border-green-200">
                     <div className="flex items-center justify-between text-sm">
@@ -179,7 +180,7 @@ export default function Cities({ team }: CitiesProps) {
                 </div>
             )}
 
-            {/* ⚠️ Предупреждение, если городов нет */}
+            {/* Предупреждение, если городов нет */}
             {cities?.length === 0 && (
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex items-center">

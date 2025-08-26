@@ -1,6 +1,6 @@
-import { useMastersByTeam } from "@/hooks/findMastersByTeam";
-import { useOrderStore } from "@/stores/orderStore";
-import { ChevronDown, Users, Wrench } from 'lucide-react';
+import { useMastersByTeam } from "@/hooks/findMastersByTeam"
+import { useOrderStore } from "@/stores/orderStore"
+import { ChevronDown, Users, Wrench } from 'lucide-react'
 
 interface Master {
     name: string;
@@ -17,8 +17,6 @@ export default function Masters({ team, city }: MastersProps) {
     const {
         formData,
         updateFormData,
-        isWorkingOnTelegramOrder,
-        currentTelegramOrder
     } = useOrderStore();
 
     // Фильтруем мастеров по городу

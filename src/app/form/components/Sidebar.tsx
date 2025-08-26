@@ -5,6 +5,7 @@ import ConnectionStatus from '@/components/ConnectionStatus'
 import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore'
 import Order from "@/types/formDataType"
 import {
+    Car,
     ChevronLeft,
     ChevronRight,
     ClipboardList,
@@ -24,8 +25,8 @@ import ConfidentialViewModal from './ConfidentialViewModal'
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeTab, setActiveTab] = useState<
-        'new-order' | 'buffer' | 'my-orders' | 'search' | ''
-    >('');
+        'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit' | null
+    >(null);
 
     // Состояния для поиска
     const [searchQuery, setSearchQuery] = useState('');
@@ -56,14 +57,11 @@ export default function Sidebar() {
     const noteOfClaimedOrder = useOrderStore(state => state.noteOfClaimedOrder);
     const clearClaimedOrders = useOrderStore(state => state.clearClaimedOrders);
     const syncClaimedOrders = useOrderStore(state => state.syncClaimedOrders);
-    const { shift, toggleShift } = useOrderStore();
-    const handleToggle = () => {
-        toggleShift();
-    };
+ 
     // Загрузка активного таба
     useEffect(() => {
         const saved = localStorage.getItem('activeTab') as
-            | 'new-order' | 'buffer' | 'my-orders' | 'search' | null;
+            | 'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit' | null;
         if (saved) {
             setActiveTab(saved);
         }
@@ -123,7 +121,7 @@ export default function Sidebar() {
     };
 
     // Navigation handler
-    const handleClick = (tab: 'new-order' | 'buffer' | 'my-orders' | 'search') => {
+    const handleClick = (tab: 'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit') => {
         setActiveTab(tab);
 
         switch (tab) {
@@ -135,6 +133,9 @@ export default function Sidebar() {
                 break;
             case 'my-orders':
                 router.push('/myOrders');
+                break;
+            case 'visit':
+                router.push('/visits');
                 break;
             case 'search':
                 if(!isExpanded) {
@@ -285,6 +286,17 @@ export default function Sidebar() {
                                 >
                                     <Folder size={14} />
                                     <span>My Orders</span>
+                                </button>
+                                <button
+                                    onClick={() => handleClick('visit')}
+                                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                                        activeTab === 'visit'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
+                                    }`}
+                                >
+                                    <Car size={14} />
+                                    <span>Visits</span>
                                 </button>
 
                                 <button
@@ -475,7 +487,17 @@ export default function Sidebar() {
                             >
                                 <Folder size={16} />
                             </button>
-
+                            <button
+                                onClick={() => handleClick('visit')}
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                                    activeTab === 'visit'
+                                        ? 'bg-green-50 text-green-600 shadow-sm border border-green-200'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
+                                }`}
+                                title="Visit"
+                            >
+                                <Car size={16} />
+                            </button>
                             <button
                                 onClick={() => handleClick('search')}
                                 className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${

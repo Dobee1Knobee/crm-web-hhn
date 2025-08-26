@@ -1,11 +1,9 @@
-import { useOrderStore } from "@/stores/orderStore";
+import { useOrderStore } from "@/stores/orderStore"
 
 export default function OrderDescription(){
     const {
         formData,
         updateFormData,
-        isWorkingOnTelegramOrder,
-        currentTelegramOrder
     } = useOrderStore();
     return(
         <div className={"bg-white shadow-md rounded-2xl p-6 m-9 w-full max-w-xl items-center"}>

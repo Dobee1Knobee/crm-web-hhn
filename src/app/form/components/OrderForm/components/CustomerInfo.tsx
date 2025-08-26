@@ -11,8 +11,7 @@ export default function CustomerInfo() {
     const {
         formData,
         updateFormData,
-        isWorkingOnTelegramOrder,
-        currentTelegramOrder,
+
         checkDoubleOrders,
         getByLeadID,
         getCorrectCity,
@@ -36,6 +35,9 @@ export default function CustomerInfo() {
         city: string;
     } | null>(null);
     const [isCheckingAddress, setIsCheckingAddress] = useState(false);
+    
+    // ⏰ Таймер для задержки проверки адреса
+    const [addressCheckTimeout, setAddressCheckTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // Ref для клика вне выпадающего списка
     const duplicatesRef = useRef<HTMLDivElement>(null);
@@ -224,29 +226,23 @@ export default function CustomerInfo() {
         };
     }, [showDuplicates]);
 
-    // 🧹 Очистка таймера при размонтировании
+    // 🧹 Очистка таймеров при размонтировании
     useEffect(() => {
         return () => {
             if (checkTimeout) {
                 clearTimeout(checkTimeout);
             }
+            if (addressCheckTimeout) {
+                clearTimeout(addressCheckTimeout);
+            }
         };
-    }, [checkTimeout]);
+    }, [checkTimeout, addressCheckTimeout]);
 
     return (
         <div className="bg-white shadow-md rounded-2xl p-6 m-9 w-full max-w-xl">
             <div className="flex items-center mb-4">
                 <span className="h-3 w-3 bg-blue-600 rounded-full mr-2"></span>
                 <h2 className="text-lg font-semibold text-gray-900">Customer Information</h2>
-
-                {/* 📱 Индикатор Telegram заказа */}
-                {isWorkingOnTelegramOrder && currentTelegramOrder && (
-                    <div className="ml-auto">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            📱 From Telegram
-                        </span>
-                    </div>
-                )}
             </div>
 
             <div className="space-y-4">
@@ -265,14 +261,9 @@ export default function CustomerInfo() {
                                 ? 'bg-white text-gray-900'
                                 : 'bg-gray-50 text-gray-500'
                         } ${
-                            isWorkingOnTelegramOrder && formData.phoneNumber
-                                ? 'bg-blue-50 border-blue-200'
-                                : ''
-                        } ${
                             duplicateOrders.length > 0 ? 'border-orange-300 bg-orange-50' :
                                 phoneError ? 'border-red-300 bg-red-50' : ''
                         }`}
-                        disabled={isWorkingOnTelegramOrder}
                     />
 
                     {/* 🔄 Индикатор загрузки */}
@@ -300,13 +291,6 @@ export default function CustomerInfo() {
                     {!isCheckingDuplicates && formData.phoneNumber && duplicateOrders.length === 0 && !phoneError && formData.phoneNumber.trim().length >= 8 && (
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                             <span className="text-green-500">✓</span>
-                        </div>
-                    )}
-
-                    {/* 📱 Telegram индикатор */}
-                    {isWorkingOnTelegramOrder && formData.phoneNumber && (
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                            <span className="text-blue-500 text-sm">📱</span>
                         </div>
                     )}
 
@@ -413,25 +397,13 @@ export default function CustomerInfo() {
                             formData.customerName
                                 ? 'bg-white text-gray-900'
                                 : 'bg-gray-50 text-gray-500'
-                        } ${
-                            isWorkingOnTelegramOrder && formData.customerName
-                                ? 'bg-blue-50 border-blue-200'
-                                : ''
                         }`}
-                        disabled={isWorkingOnTelegramOrder}
                     />
 
                     {/* ✅ Индикатор заполненности */}
                     {formData.customerName && (
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                             <span className="text-green-500">✓</span>
-                        </div>
-                    )}
-
-                    {/* 📱 Telegram индикатор */}
-                    {isWorkingOnTelegramOrder && formData.customerName && (
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                            <span className="text-blue-500 text-sm">📱</span>
                         </div>
                     )}
                 </div>
@@ -447,8 +419,18 @@ export default function CustomerInfo() {
                                 updateFormData('address', e.target.value);
                                 // Очищаем предыдущий детектированный адрес при изменении
                                 setDetectedAddress(null);
-                                // Автоматическая проверка адреса с задержкой
-                                setTimeout(() => checkAddress(e.target.value), 1000);
+                                
+                                // Очищаем предыдущий таймер
+                                if (addressCheckTimeout) {
+                                    clearTimeout(addressCheckTimeout);
+                                }
+                                
+                                // Устанавливаем новый таймер для проверки адреса через 5 секунд
+                                const newTimeout = setTimeout(() => {
+                                    checkAddress(e.target.value);
+                                }, 2000);
+                                
+                                setAddressCheckTimeout(newTimeout);
                             }}
                             onBlur={() => {
                                 // Если поле адреса пустое, сбрасываем детектированный адрес
@@ -500,20 +482,7 @@ export default function CustomerInfo() {
                     </div>
             </div>
 
-            {/* 📱 Показываем исходное сообщение клиента из Telegram */}
-            {isWorkingOnTelegramOrder && currentTelegramOrder && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div className="flex items-center mb-2">
-                        <span className="text-blue-600 text-sm font-medium">📱 Original Telegram Message:</span>
-                    </div>
-                    <div className="text-sm text-blue-800 bg-white p-3 rounded-lg border border-blue-200">
-                        {currentTelegramOrder.customerMessage}
-                    </div>
-                    <div className="text-xs text-blue-600 mt-2">
-                        Accepted at: {new Date(currentTelegramOrder.acceptedAt).toLocaleString()}
-                    </div>
-                </div>
-            )}
+
 
             {/* 📊 Прогресс заполнения */}
             <div className="mt-6">

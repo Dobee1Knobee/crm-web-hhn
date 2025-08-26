@@ -19,9 +19,8 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware'
 // === SOCKET CONFIG ===
 const SOCKET_URL =
     (process.env.NEXT_PUBLIC_SOCKET_URL?.trim() || 'https://bot-crm-backend-756832582185.us-central1.run.app')
-        .replace(/\/+$/, ''); // обрежем хвостовые слэши
+        .replace(/\/+$/, '');
 
-// Жёсткая проверка, чтобы не получить "http://http/..."
 if (!/^https?:\/\//i.test(SOCKET_URL)) {
     console.error('⚠ Некорректный NEXT_PUBLIC_SOCKET_URL:', SOCKET_URL);
 }
@@ -194,7 +193,6 @@ interface BufferState {
 // ===== ИНТЕРФЕЙС STORE =====
 export interface OrderState extends BufferState {
     // ===== ДАННЫЕ =====
-    shift: boolean;
     currentOrder: Order | null;
     formData: FormData;
     selectedServices: ServiceItem[];
@@ -223,6 +221,7 @@ export interface OrderState extends BufferState {
         userAt: string;
         team: string;
         manager_id: string;
+        shift: boolean;
     } | null;
    
 
@@ -288,7 +287,7 @@ export interface OrderState extends BufferState {
     removeSubService: (mainServiceId: number, subServiceId: number) => void;
     getTotalPrice: () => number;
 
-    // ===== 🆕 НОВЫЕ МЕТОДЫ ДЛЯ БУФЕРА =====
+    // =====  НОВЫЕ МЕТОДЫ ДЛЯ БУФЕРА =====
     fetchBufferOrders: () => Promise<void>;
     claimBufferOrder: (orderId: string, team: string | undefined) => Promise<boolean>;
     transferOrderToBuffer: (orderId: string, targetTeam: string | undefined, note?: string | undefined) => Promise<boolean>;
@@ -338,7 +337,7 @@ export interface OrderState extends BufferState {
     hasPrevPage: () => boolean;
 
     // ===== УТИЛИТЫ =====
-    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string; manager_id: string }) => void;
+    setCurrentUser: (user: { userId: string; userName: string; userAt: string; team: string; manager_id: string,shift: boolean }) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     reset: () => void;
@@ -404,7 +403,6 @@ export const useOrderStore = create<OrderState>()(
             // ===== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ =====
             currentOrder: null,
             addressFitNotification: null,
-            shift: getShiftFromStorage(),
             formData: initialFormData,
             selectedServices: [],
             orders: [],
@@ -1126,10 +1124,10 @@ export const useOrderStore = create<OrderState>()(
                 }
             },
             toggleShift: async () => {
-                const currentShift = get().shift;
+                const currentShift = get().currentUser?.shift;
+
                 const at = get().currentUser?.userAt;
                 
-                // Определяем какой эндпоинт вызывать
                 const endpoint = currentShift 
                     ? 'https://bot-crm-backend-756832582185.us-central1.run.app/api/user/turn-off-shift'
                     : 'https://bot-crm-backend-756832582185.us-central1.run.app/api/user/turn-on-shift';
@@ -1149,9 +1147,7 @@ export const useOrderStore = create<OrderState>()(
                 
                 // Обновляем состояние и sessionStorage
                 const newShiftState = !currentShift;
-                set({ shift: newShiftState });
                 setSessionStorageJSON('shift', newShiftState);
-                
                 return result;
             },
             // Получение заклейменных заказов
@@ -1337,6 +1333,10 @@ export const useOrderStore = create<OrderState>()(
                     throw new Error('Команда пользователя не определена');
                 }
                 
+                console.log('⏳ Waiting 5 seconds before API call...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log('✅ Delay completed, making API call...');
+                
                 try {
                     const response = await fetch(`https://tvmountmaster.ngrok.dev/get_address`, {
                         method: 'POST',
@@ -1355,36 +1355,24 @@ export const useOrderStore = create<OrderState>()(
                     
                     const data: CorrectCityResponse = await response.json();
                     
-                    // Проверяем поле fit и показываем уведомление если false
                     if (!data.fit) {
                         const message = `Address doesn't match your team. Recommended to transfer order to team ${data.nearest_team}`;
-                        // Получаем текущий orderId и номер телефона из формы (если есть)
+                
                         const currentOrderId = get().currentOrder?._id || get().currentLeadID;
                         const currentPhoneNumber = get().formData.phoneNumber;
                         get().showAddressFitNotification(message, data.nearest_team, address, currentOrderId, currentPhoneNumber);
                     } else {
-                        // ===== ЛОГИКА ОБНОВЛЕНИЯ ГОРОДА/ШТАТА ДЛЯ ПОДХОДЯЩИХ АДРЕСОВ =====
-                        // Приоритет: city > town > state (с проверкой совпадения)
                         let cityToUse = '';
                         let shouldShowManualSelection = false;
-                        
                         console.log('🔍 Processing suitable address - Address data received:', {
                             city: data.address_data.data.city,
                             state: data.address_data.data.state,
                             postcode: data.address_data.data.postcode
                         });
-                        
-                        // Проверяем, есть ли город в ответе (приоритет: city > state, town не используем)
                         if (data.address_data.data.city) {
-                            cityToUse = data.address_data.data.city;
-                            console.log('✅ Using city from API:', cityToUse);
-                        } 
-                        // Если города нет, но есть штат - проверяем совпадение
-                        else if (data.address_data.data.state) {
-                            const stateName = data.address_data.data.state;
-                            console.log('🔍 Checking if state matches available cities:', stateName);
+                            const detectedCity = data.address_data.data.city;
+                            console.log('🔍 Checking if detected city is available for team:', detectedCity);
                             
-                            // Получаем список доступных городов для команды
                             try {
                                 console.log(`🔍 Fetching available cities for team: ${user.team}`);
                                 const citiesResponse = await fetch(
@@ -1396,32 +1384,37 @@ export const useOrderStore = create<OrderState>()(
                                     const availableCities = citiesData.cities || [];
                                     
                                     console.log('🏙️ Available cities for team:', availableCities.map((c: any) => c.name));
-                                    console.log(`🔍 Comparing state "${stateName}" with available cities...`);
                                     
-                                    // Проверяем, есть ли совпадение state с доступными городами
-                                    const stateMatchesCity = availableCities.some((city: any) => {
+                                    // Проверяем, есть ли обнаруженный город в списке доступных
+                                    const cityIsAvailable = availableCities.some((city: any) => {
                                         const cityName = city.name?.toLowerCase();
-                                        const stateNameLower = stateName.toLowerCase();
-                                        const matches = cityName === stateNameLower;
-                                        console.log(`  ${cityName} === ${stateNameLower} ? ${matches}`);
-                                        return matches;
+                                        const detectedCityLower = detectedCity.toLowerCase();
+                                        return cityName === detectedCityLower;
                                     });
                                     
-                                    if (stateMatchesCity) {
-                                        cityToUse = stateName;
-                                        console.log('✅ State matches available city, using state:', cityToUse);
+                                    if (cityIsAvailable) {
+                                        cityToUse = detectedCity;
+                                        console.log('✅ Detected city is available, using:', cityToUse);
+                                    } else if (data.address_data.data.state) {
+                                        cityToUse = data.address_data.data.state;
+                                        console.log('❌ Detected city not available, using state instead:', cityToUse);
                                     } else {
-                                        console.log('❌ State does not match any available city');
-                                        shouldShowManualSelection = true;
+                                        console.log('❌ No suitable city found');
                                     }
                                 } else {
-                                    console.log('❌ Failed to fetch available cities:', citiesResponse.status);
-                                    shouldShowManualSelection = true;
+                                    console.log('❌ Failed to fetch available cities, using detected city:', detectedCity);
+                                    cityToUse = detectedCity;
                                 }
                             } catch (error) {
-                                console.error('❌ Error fetching available cities:', error);
-                                shouldShowManualSelection = true;
+                                console.error('❌ Error fetching available cities, using detected city:', detectedCity);
+                                cityToUse = detectedCity;
                             }
+                        } 
+                        // Если города нет, но есть штат - используем штат как город
+                        else if (data.address_data.data.state) {
+                            const stateName = data.address_data.data.state;
+                            cityToUse = stateName;
+                            console.log('✅ Using state as city:', cityToUse);
                         }
                         
                         // Обновляем данные только если у нас есть что обновлять
@@ -2293,7 +2286,7 @@ export const useOrderStore = create<OrderState>()(
                     // Не показываем ошибку пользователю, это фоновое логирование
                 }
             },
-
+            
             // ===== ИЗМЕНЕНИЕ СТАТУСА =====
             changeStatus: async (status, leadId) => {
                 set({ isSaving: true, error: null }, false, 'changeStatus:start');
