@@ -1548,6 +1548,12 @@ export const useOrderStore = create<OrderState>()(
                 const errors: string[] = [];
 
                 if (!formData.phoneNumber.trim()) errors.push('Phone number is required');
+                
+                // Проверяем, что если выбрана дата, то мастер обязателен
+                if (formData.date && !formData.masterName.trim()) {
+                    errors.push('Master is required when date is selected');
+                }
+                
                 selectedServices.forEach(service => {
                     if (service.category === 'main' && service.name !== 'NO TV' && service.value !== 'noTV') {
                         if (!service.diagonals || service.diagonals.length === 0) {

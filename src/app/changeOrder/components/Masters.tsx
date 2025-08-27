@@ -19,9 +19,23 @@ export default function Masters({ team, city }: MastersProps) {
         formData,
         updateFormData,
     } = useOrderStore();
+    
+    // Состояние для ошибки валидации
+    const [masterError, setMasterError] = useState<string>('');
+    
     useEffect(() => {
         setIsAdditionalTechVisible(Boolean(formData.masterName && formData.masterName.length > 0));
     }, [formData.masterName]);
+    
+    // Проверяем валидацию при изменении даты или мастера
+    useEffect(() => {
+        if (formData.date && !formData.masterName.trim()) {
+            setMasterError('Master is required when date is selected');
+        } else {
+            setMasterError('');
+        }
+    }, [formData.date, formData.masterName]);
+    
     // Фильтруем мастеров по городу
     const filteredMasters = masters?.filter(master => master.city === city) || [];
     const [isAdditionalTechVisible, setIsAdditionalTechVisible] = useState(false);
@@ -39,7 +53,9 @@ export default function Masters({ team, city }: MastersProps) {
             <div className='flex flex-row gap-3 items-stre'>
             <div className={`relative w-96 ${isAdditionalTechVisible ? 'w-96' : 'w-full'}`}>
                 <select
-                    className="w-full p-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none bg-white"
+                    className={`w-full p-4 pr-10 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none bg-white ${
+                        masterError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                     value={formData.masterName}
                     onChange={(e) => {updateFormData("masterName", e.target.value)}}
                 >
@@ -60,7 +76,14 @@ export default function Masters({ team, city }: MastersProps) {
                 {/* Кастомная стрелка для select */}
                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               
-            </div>       
+            </div>
+            
+            {/* Сообщение об ошибке валидации */}
+            {masterError && (
+                <div className="mt-1 text-xs text-red-500">
+                    {masterError}
+                </div>
+            )}       
             {isAdditionalTechVisible &&
             (<button className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-lg text-center flex flex-col items-center transition-colors duration-200 shadow-sm hover:shadow-md" onClick={() => {setIsAddingExtraTech(true); setIsAdditionalTechVisible(false)}}>       
                 <Plus className="w-3 h-3" />
