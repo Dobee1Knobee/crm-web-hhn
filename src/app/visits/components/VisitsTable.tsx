@@ -1,3 +1,8 @@
+'use client'
+import "keen-slider/keen-slider.min.css"
+import { useKeenSlider } from "keen-slider/react"
+import { useState } from "react"
+
 interface Visit {
 	day: string;
 	time: string;
@@ -14,6 +19,44 @@ interface VisitsTableProps {
 }
 
 export default function VisitsTable({ data }: VisitsTableProps) {
+	// Функция для получения дня недели
+	const getDayOfWeek = (dateString: string): string => {
+		const date = new Date(dateString);
+		return date.toLocaleDateString('en-US', { weekday: 'short' });
+	};
+
+	// Функция для сортировки визитов по дате и времени
+	const sortVisitsByDateTime = (visits: Visit[]): Visit[] => {
+		return visits.sort((a, b) => {
+			// Функция для парсинга времени в 24-часовом формате
+			const parseTime = (timeStr: string): number => {
+				const time = timeStr.toLowerCase();
+				if (time.includes('pm')) {
+					const hour = parseInt(time.replace('pm', ''));
+					return hour === 12 ? 12 : hour + 12;
+				} else if (time.includes('am')) {
+					const hour = parseInt(time.replace('am', ''));
+					return hour === 12 ? 0 : hour;
+				}
+				return parseInt(time);
+			};
+
+			// Создаем даты для сравнения
+			const dateA = new Date(a.day);
+			const dateB = new Date(b.day);
+			
+			// Если даты разные, сортируем по дате
+			if (dateA.getTime() !== dateB.getTime()) {
+				return dateA.getTime() - dateB.getTime();
+			}
+			
+			// Если даты одинаковые, сортируем по времени
+			const timeA = parseTime(a.time);
+			const timeB = parseTime(b.time);
+			return timeA - timeB;
+		});
+	};
+
 	// Группируем визиты по мастерам
 	const mastersMap = new Map<string, Visit[]>();
 	
@@ -25,8 +68,31 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 			mastersMap.get(visit.master)?.push(visit);
 		});
 	});
+
+	// Сортируем визиты для каждого мастера
+	mastersMap.forEach((visits, master) => {
+		mastersMap.set(master, sortVisitsByDateTime(visits));
+	});
 	
 	const masters = Array.from(mastersMap.keys());
+	
+	// Добавляем состояние для отслеживания текущего слайда
+	const [currentSlide, setCurrentSlide] = useState(0);
+
+	// Вычисляем количество слайдов на экране в зависимости от количества мастеров
+	const slidesPerView = Math.min(masters.length, 4);
+	
+	// Добавляем хук keen-slider
+	const [sliderRef, slider] = useKeenSlider<HTMLDivElement>({
+		loop: masters.length > 4, // Зацикливание только если мастеров больше 4
+		slides: {
+			perView: slidesPerView,
+			spacing: 10,
+		},
+		slideChanged(slider) {
+			setCurrentSlide(slider.track.details.rel);
+		},
+	});
 	
 	if (masters.length === 0) {
 		return (
@@ -39,7 +105,7 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 	}
 	
 	return (
-		<div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl p-8 border border-gray-100">
+		<div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl p-8 border border-gray-100 overflow-hidden">
 			<div className="flex items-center justify-between mb-8">
 				<div>
 					<h2 className="text-2xl font-bold text-gray-800">Visits by Master</h2>
@@ -50,8 +116,30 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 				</div>
 			</div>
 			
-			<div className="overflow-x-auto">
-				<div className="flex space-x-8 min-w-max pb-3 mt-1">
+			{/* Карусель с кнопками навигации */}
+			<div className="relative max-w-full">
+								{/* Кнопка "Влево" */}
+				{slider.current && masters.length > 4 && (
+					<button
+						onClick={() => slider.current?.prev()}
+						className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-black text-white rounded-full p-2 w-12 h-12 flex items-center justify-center shadow-md hover:bg-gray-800 transition-colors"
+					>
+						<span className="text-3xl font-light">‹</span>
+					</button>
+				)}
+				
+				{/* Кнопка "Вправо" */}
+				{slider.current && masters.length > 4 && (
+					<button
+						onClick={() => slider.current?.next()}
+						className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-black text-white rounded-full p-2 w-12 h-12 flex items-center justify-center shadow-md hover:bg-gray-800 transition-colors"
+					>
+						<span className="text-3xl font-light">›</span>
+					</button>
+				)}
+				
+				{/* Слайдер */}
+				<div ref={sliderRef} className="keen-slider">
 					{masters.map((master, masterIndex) => {
 						const visits = mastersMap.get(master) || [];
 						const colors = [
@@ -82,8 +170,8 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 						const colorIndex = masterIndex % colors.length;
 						
 						return (
-							<div key={master} className="flex-shrink-0 w-80">
-								<div className={`${bgColors[colorIndex]} rounded-2xl p-6 border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
+							<div key={master} className="keen-slider__slide">
+								<div className={`${bgColors[colorIndex]} rounded-2xl p-6 mt-1 border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
 									<div className="flex items-center justify-between mb-6">
 										<div className="flex items-center space-x-3">
 											<div className={`w-12 h-12 bg-gradient-to-r ${colors[colorIndex]} rounded-full flex items-center justify-center shadow-lg`}>
@@ -112,7 +200,7 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 														<span className="text-sm font-medium text-gray-600">Date</span>
 													</div>
 													<span className="text-sm font-semibold text-gray-800 bg-gray-100 px-2 py-1 rounded-md">
-														{visit.day}
+														{visit.day} {getDayOfWeek(visit.day)}
 													</span>
 												</div>
 												<div className="flex items-center justify-between">
@@ -142,6 +230,22 @@ export default function VisitsTable({ data }: VisitsTableProps) {
 					})}
 				</div>
 			</div>
+			
+			{/* Индикаторы (точки) - показываем только если мастеров больше 4 */}
+			{masters.length > 4 && (
+				<div className="flex justify-center gap-2 mt-6">
+					{Array.from({ length: Math.ceil(masters.length / slidesPerView) }, (_, idx) => (
+						<div
+							key={idx}
+							className={`w-3 h-3 rounded-full transition-all duration-300 ${
+								currentSlide === idx
+									? "bg-black scale-110"
+									: "bg-gray-400 opacity-60"
+							}`}
+						/>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }

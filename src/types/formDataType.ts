@@ -136,6 +136,7 @@ export interface Order {
     phone?: string;
     city?: string;
     master?: string;
+    additionalTechName?: string;
     comment?: string;
     total?: number;
     services: OrderService[];
@@ -203,6 +204,7 @@ export interface CreateOrderData {
     date: string;
     time:string;
     master?: string;
+    additionalTechName?: string;
     manager_id?: string;
 
     // Описание и комментарии

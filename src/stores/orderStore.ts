@@ -46,6 +46,7 @@ export interface FormData {
     city: string;
     masterId: string;
     masterName: string;
+    additionalTechName?: string;
     description: string;
     teamId: string;
     custom?: number;
@@ -391,6 +392,7 @@ const initialFormData: FormData = {
     city: '',
     masterId: '',
     masterName: '',
+    additionalTechName: '',
     description: '',
     teamId: 'Init',
     custom: undefined
@@ -1762,6 +1764,7 @@ export const useOrderStore = create<OrderState>()(
                         time: formData.time,
                         custom: formData.custom,
                         master: formData.masterName,
+                        additionalTechName: formData.additionalTechName,
                         manager_id: currentUser?.manager_id,
                         comment: formData.description,
                         services: orderServices,
@@ -1899,6 +1902,7 @@ export const useOrderStore = create<OrderState>()(
                         city: formData.city,
                         manager_id: formData.masterId,
                         master: formData.masterName,
+                        additionalTechName: formData.additionalTechName,
                         comment: formData.description,
                         team: formData.teamId,
                         custom: formData.custom,

@@ -14,6 +14,7 @@ export const mapOrderToFormPatch = (o: Order): Partial<FormData> => ({
     city        : o.city ?? "New_York",
     masterId    : o.manager_id ?? "",
     masterName  : o.master ?? "",
+    additionalTechName: o.additionalTechName ?? "",
     description : o.comment ?? "",
     teamId      : o.team ?? "A",
 });
