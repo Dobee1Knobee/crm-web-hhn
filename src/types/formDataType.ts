@@ -191,6 +191,7 @@ export interface ServiceItem {
 export interface CreateOrderData {
     // Базовые обязательные поля
     owner: string | undefined;
+    dateSlots?:string[];
     team: string;
     custom?: number;
     // Информация о клиенте

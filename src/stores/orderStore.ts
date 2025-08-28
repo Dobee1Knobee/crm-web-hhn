@@ -38,6 +38,7 @@ const getShiftFromStorage = (): boolean => {
 export interface FormData {
     customerName: string;
     phoneNumber: string;
+    dateSlots?:string[];
     text_status: string;
     address: string;
     zipCode: string;
@@ -47,6 +48,7 @@ export interface FormData {
     masterId: string;
     masterName: string;
     additionalTechName?: string;
+    additionalTechSlots?: string;
     description: string;
     teamId: string;
     custom?: number;
@@ -393,6 +395,7 @@ const initialFormData: FormData = {
     masterId: '',
     masterName: '',
     additionalTechName: '',
+    additionalTechSlots: '',
     description: '',
     teamId: 'Init',
     custom: undefined
@@ -1759,6 +1762,7 @@ export const useOrderStore = create<OrderState>()(
                     );
 
                     const orderData: CreateOrderData = {
+                        dateSlots: formData.dateSlots,
                         owner: userOwner ,
                         team: formData.teamId,
                         leadName: formData.customerName,

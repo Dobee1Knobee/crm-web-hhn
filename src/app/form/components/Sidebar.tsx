@@ -5,6 +5,7 @@ import ConnectionStatus from '@/components/ConnectionStatus'
 import { NoteOfClaimedOrder, useOrderStore } from '@/stores/orderStore'
 import Order from "@/types/formDataType"
 import {
+    Calendar,
     Car,
     ChevronLeft,
     ChevronRight,
@@ -25,7 +26,7 @@ import ConfidentialViewModal from './ConfidentialViewModal'
 export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeTab, setActiveTab] = useState<
-        'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit' | null
+        'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit' | 'schedule' | null
     >(null);
 
     // Состояния для поиска
@@ -121,7 +122,7 @@ export default function Sidebar() {
     };
 
     // Navigation handler
-    const handleClick = (tab: 'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit') => {
+    const handleClick = (tab: 'new-order' | 'buffer' | 'my-orders' | 'search' | 'visit' | 'schedule') => {
         setActiveTab(tab);
 
         switch (tab) {
@@ -136,6 +137,9 @@ export default function Sidebar() {
                 break;
             case 'visit':
                 router.push('/visits');
+                break;
+            case 'schedule':
+                router.push('/schedule');
                 break;
             case 'search':
                 if(!isExpanded) {
@@ -298,7 +302,17 @@ export default function Sidebar() {
                                     <Car size={14} />
                                     <span>Visits</span>
                                 </button>
-
+                                <button
+                                    onClick={() => handleClick('schedule')}
+                                    className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                                        activeTab === 'schedule'
+                                            ? 'bg-red-50 text-red-700 border border-red-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
+                                    }`}
+                                >
+                                    <Calendar size={14} />  
+                                    <span>Schedule</span>
+                                </button>
                                 <button
                                     onClick={() => handleClick('search')}
                                     className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
@@ -497,6 +511,17 @@ export default function Sidebar() {
                                 title="Visit"
                             >
                                 <Car size={16} />
+                            </button>
+                            <button
+                                onClick={() => handleClick('schedule')}
+                                className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                                        activeTab === 'schedule'
+                                            ? 'bg-red-50 text-red-700 border border-red-200 shadow-sm'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:border-gray-200 border border-transparent'
+                                }`}
+                                title="New Order"
+                            >
+                                <Calendar size={16} />
                             </button>
                             <button
                                 onClick={() => handleClick('search')}
