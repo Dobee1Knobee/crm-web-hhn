@@ -28,18 +28,73 @@ export default function Masters({ team, city }: MastersProps) {
         setIsAdditionalTechVisible(Boolean(formData.masterName && formData.masterName.length > 0));
     }, [formData.masterName]);
     
-    // Фильтруем мастеров по городу
     const filteredMasters = masters?.filter(master => master.city === city) || [];
     const [isAdditionalTechVisible, setIsAdditionalTechVisible] = useState(false);
     const [isAddingExtraTech, setIsAddingExtraTech] = useState(false);
     
-    // Состояние для выбранных слотов первого мастера
     const [firstMasterSelectedSlots, setFirstMasterSelectedSlots] = useState<Set<string>>(new Set());
-    
-    // Сбрасываем выбранные слоты и дополнительного мастера при изменении даты
+
     useEffect(() => {
-        if (firstMasterSelectedSlots.size > 0 || formData.additionalTechName) {
-            console.log('Date changed, clearing selected slots and additional master');
+        if (formData.additionalTechName && !isAddingExtraTech) {
+            console.log('Auto-selecting additional tech from formData:', formData.additionalTechName);
+            setIsAddingExtraTech(true);
+            setIsAdditionalTechVisible(true);
+        }
+    }, [formData.additionalTechName, isAddingExtraTech]);
+
+    useEffect(() => {
+        if (formData.dateSlots && formData.dateSlots.length > 0 && firstMasterSelectedSlots.size === 0) {
+            const slotsToSelect = new Set<string>();
+            
+            // Обрабатываем dateSlots - может быть массивом или строкой
+            let slotsArray: string[] = [];
+            
+            if (Array.isArray(formData.dateSlots)) {
+                // Если это массив, обрабатываем каждый элемент
+                formData.dateSlots.forEach((item: any) => {
+                    if (typeof item === 'string') {
+                        // Если элемент содержит запятые, разбиваем его
+                        if (item.includes(',')) {
+                            slotsArray.push(...item.split(',').filter((slot: string) => slot.trim().length > 0));
+                        } else {
+                            slotsArray.push(item);
+                        }
+                    }
+                });
+            } else if (typeof formData.dateSlots === 'string') {
+                // Если это строка, разбиваем по запятой
+                const slotsString = formData.dateSlots as string;
+                if (slotsString.length > 0) {
+                    slotsArray = slotsString.split(',').filter((slot: string) => slot.trim().length > 0);
+                }
+            }
+            
+            console.log('Parsed slots array:', slotsArray);
+            
+            // Теперь обрабатываем разбитые слоты
+            slotsArray.forEach(slot => {
+                if (slot.startsWith(formData.masterName)) {
+                    slotsToSelect.add(slot);
+                }
+            });
+            
+            if (slotsToSelect.size > 0) {
+                console.log('Auto-selecting first master slots from formData:', Array.from(slotsToSelect));
+                setFirstMasterSelectedSlots(slotsToSelect);
+            }
+        }
+    }, [formData.dateSlots, formData.masterName, firstMasterSelectedSlots.size]);
+
+    useEffect(() => {
+        if (formData.additionalTechSlots && formData.additionalTechSlots.length > 0) {
+            console.log('Auto-setting additionalTechSlots from formData:', formData.additionalTechSlots);
+        }
+    }, [formData.additionalTechSlots]);
+    
+    useEffect(() => {
+    
+        if (formData.date && firstMasterSelectedSlots.size > 0) {
+            console.log('Date changed by user, clearing selected slots and additional master');
             setFirstMasterSelectedSlots(new Set());
             updateFormData("additionalTechName", "");
             updateFormData("additionalTechSlots", "");
@@ -126,7 +181,7 @@ export default function Masters({ team, city }: MastersProps) {
                     <select
                         className="w-full p-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none bg-white"
                         value={formData.masterName}
-                        onChange={(e) => {updateFormData("masterName", e.target.value);setShowingSchedule(true)}}
+                        onChange={(e) => {updateFormData("masterName", e.target.value);setShowingSchedule(true);setFirstMasterSelectedSlots(new Set())}}
                     >
                         <option value="">Select a master</option>
                         {filteredMasters.length > 0 ? (

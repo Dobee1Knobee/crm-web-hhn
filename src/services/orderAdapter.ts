@@ -1,6 +1,6 @@
 // src/services/orderAdapter.ts
-import { ApiOrder, OrderStatus } from '@/types/api';
-import {Order, Team, TransferInfo} from '@/types/domain';
+import { ApiOrder } from '@/types/api'
+import { Order, Team, TransferInfo } from '@/types/domain'
 
 export class OrderAdapter {
     /**

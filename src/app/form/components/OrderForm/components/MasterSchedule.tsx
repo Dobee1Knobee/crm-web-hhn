@@ -22,6 +22,8 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
     const { updateFormData } = useOrderStore()
     const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set())
     
+    console.log('MasterSchedule render:', { masterName, selectedDate, selectedSlots: Array.from(selectedSlots) });
+    
     // Получаем базовую информацию о расписании
     const availableDates = schedule && Array.isArray(schedule) 
         ? schedule.find((item: any) => item && item.master_name === masterName)?.schedule 
@@ -34,6 +36,8 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
         ? schedule.find((item: any) => item && item.master_name === masterName)?.schedule?.[targetDate] || []
         : []
     
+    console.log('MasterSchedule computed values:', { availableDates, targetDate, daySlots });
+    
     const hourOfStartOrder = Array.from(selectedSlots).map(slot => Number(slot.split('-')[4])).sort((a, b) => a - b)
     const minHourOfStartOrder = hourOfStartOrder[0]
     const amPMOfStartOrder = Array.from(selectedSlots).map(slot => slot.split('-')[5])
@@ -43,6 +47,7 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
     console.log('amPMOfStartOrder:', amPMOfStartOrder)
     
     useEffect(() => {
+        // Проверяем, что у нас есть выбранные слоты и время
         if (minHourOfStartOrder && amPMOfStartOrder[0] && selectedSlots.size > 0) {
             const timeValue = minHourOfStartOrder.toString().concat(amPMOfStartOrder[0])
             console.log('Updating time to:', timeValue)
@@ -50,7 +55,7 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
             // Получаем текущее значение времени из формы
             const currentTime = useOrderStore.getState().formData.time
             
-            // Обновляем только если значение изменилось
+            // Обновляем только если значение действительно изменилось
             if (currentTime !== timeValue) {
                 updateFormData("time", timeValue)
             }
@@ -60,7 +65,140 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
         if (onSlotsChange) {
             onSlotsChange(selectedSlots)
         }
-    }, [selectedSlots.size, minHourOfStartOrder, amPMOfStartOrder, onSlotsChange])
+    }, [selectedSlots, minHourOfStartOrder, amPMOfStartOrder, onSlotsChange, updateFormData])
+    
+    // Добавляем useEffect для инициализации существующих слотов
+    useEffect(() => {
+        console.log('MasterSchedule: Initializing with schedule:', schedule, 'masterName:', masterName, 'targetDate:', targetDate);
+        
+        // Если у нас есть schedule с существующими заказами, инициализируем selectedSlots
+        if (schedule && Array.isArray(schedule)) {
+            const masterSchedule = schedule.find((item: any) => item && item.master_name === masterName)
+            if (masterSchedule && masterSchedule.schedule && masterSchedule.schedule[targetDate]) {
+                const existingSlots = new Set<string>()
+                masterSchedule.schedule[targetDate].forEach((slot: TimeSlot) => {
+                    if (slot.busy && slot.lead_id) {
+                        const slotKey = `${masterName}-${targetDate}-${slot.hour}-${slot.amPM}`
+                        existingSlots.add(slotKey)
+                    }
+                })
+                
+                // Обновляем состояние только если есть изменения и слоты действительно изменились
+                if (existingSlots.size > 0) {
+                    const currentSlotsArray = Array.from(selectedSlots).sort()
+                    const existingSlotsArray = Array.from(existingSlots).sort()
+                    const hasChanged = currentSlotsArray.length !== existingSlotsArray.length || 
+                                     !currentSlotsArray.every((slot, index) => slot === existingSlotsArray[index])
+                    
+                    if (hasChanged) {
+                        console.log('Initializing existing slots for master:', masterName, 'slots:', Array.from(existingSlots))
+                        setSelectedSlots(existingSlots)
+                        // Обновляем форму только один раз при инициализации
+                        updateFormData("dateSlots", Array.from(existingSlots).join(','))
+                    }
+                }
+            }
+        }
+    }, [schedule, masterName, targetDate, selectedSlots]) // Добавляем selectedSlots для сравнения
+    
+    // Дополнительный useEffect для инициализации при изменении masterName
+    useEffect(() => {
+        if (masterName && schedule && Array.isArray(schedule)) {
+            const masterSchedule = schedule.find((item: any) => item && item.master_name === masterName)
+            if (masterSchedule && masterSchedule.schedule && masterSchedule.schedule[targetDate]) {
+                const existingSlots = new Set<string>()
+                masterSchedule.schedule[targetDate].forEach((slot: TimeSlot) => {
+                    if (slot.busy && slot.lead_id) {
+                        const slotKey = `${masterName}-${targetDate}-${slot.hour}-${slot.amPM}`
+                        existingSlots.add(slotKey)
+                    }
+                })
+                
+                if (existingSlots.size > 0) {
+                    console.log('Master changed, initializing slots for:', masterName, 'slots:', Array.from(existingSlots))
+                    setSelectedSlots(existingSlots)
+                }
+            }
+        }
+    }, [masterName, schedule, targetDate])
+    
+    // Новый useEffect для инициализации из formData при загрузке
+    useEffect(() => {
+        // Получаем текущие данные из формы
+        const currentFormData = useOrderStore.getState().formData;
+        console.log('MasterSchedule: Checking formData for initialization:', currentFormData);
+        
+        // Безопасно обрабатываем dateSlots - может быть строкой или массивом
+        let dateSlotsArray: string[] = [];
+        if (currentFormData.dateSlots) {
+            if (Array.isArray(currentFormData.dateSlots)) {
+                // Если это массив, обрабатываем каждый элемент
+                currentFormData.dateSlots.forEach((item: any) => {
+                    if (typeof item === 'string') {
+                        // Если элемент содержит запятые, разбиваем его
+                        if (item.includes(',')) {
+                            dateSlotsArray.push(...item.split(',').filter((slot: string) => slot.trim().length > 0));
+                        } else {
+                            dateSlotsArray.push(item);
+                        }
+                    }
+                });
+            } else if (typeof currentFormData.dateSlots === 'string') {
+                // Если это строка, разбиваем по запятой
+                const slotsString = currentFormData.dateSlots as string;
+                if (slotsString.length > 0) {
+                    dateSlotsArray = slotsString.split(',').filter((slot: string) => slot.trim().length > 0);
+                }
+            }
+        }
+        
+        console.log('MasterSchedule: Parsed dateSlots array:', dateSlotsArray);
+        
+        if (dateSlotsArray.length > 0) {
+            const slotsFromForm = new Set<string>();
+            
+            dateSlotsArray.forEach(slot => {
+                if (slot.startsWith(masterName)) {
+                    slotsFromForm.add(slot);
+                }
+            });
+            
+            if (slotsFromForm.size > 0) {
+                console.log('MasterSchedule: Initializing slots from formData:', Array.from(slotsFromForm));
+                setSelectedSlots(slotsFromForm);
+                
+                // Автоматически устанавливаем время на основе первого слота
+                const firstSlot = Array.from(slotsFromForm)[0];
+                if (firstSlot) {
+                    const parts = firstSlot.split('-');
+                    const hour = parts[4];
+                    const amPM = parts[5];
+                    const timeValue = hour + amPM;
+                    
+                    console.log('Auto-setting time from first slot:', timeValue);
+                    // Убираем updateFormData отсюда, чтобы избежать бесконечного цикла
+                }
+            }
+        }
+        
+        // Автоматически устанавливаем дату из существующих данных
+        if (currentFormData.date && !currentFormData.date.includes('T')) {
+            // Если дата уже установлена, используем её
+            console.log('Date already set in formData:', currentFormData.date);
+        } else if (dateSlotsArray.length > 0) {
+            // Извлекаем дату из первого слота
+            const firstSlot = dateSlotsArray[0];
+            if (firstSlot) {
+                const parts = firstSlot.split('-');
+                const dateFromSlot = parts[1]; // Формат: YYYY-MM-DD
+                
+                if (dateFromSlot && dateFromSlot.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    console.log('Auto-setting date from first slot:', dateFromSlot);
+                    // Убираем updateFormData отсюда, чтобы избежать бесконечного цикла
+                }
+            }
+        }
+    }, [masterName]) // Убираем updateFormData из зависимостей
     
     // Безопасная проверка типа schedule
     if (!schedule || !Array.isArray(schedule)) {
@@ -143,16 +281,24 @@ export default function MasterSchedule({ masterName, schedule, selectedDate, onS
                                             const newSet = new Set(prev)
                                             newSet.delete(slotKey)
                                             console.log('Removed slot:', slotKey, 'New state:', newSet)
-                                            // Обновляем форму с новым состоянием
-                                            updateFormData("dateSlots", Array.from(newSet).join(','))
+                                            // Обновляем форму только если состояние действительно изменилось
+                                            const newSlotsString = Array.from(newSet).join(',')
+                                            const currentSlotsString = useOrderStore.getState().formData.dateSlots || ""
+                                            if (currentSlotsString !== newSlotsString) {
+                                                updateFormData("dateSlots", newSlotsString)
+                                            }
                                             return newSet
                                         })
                                     } else {
                                         setSelectedSlots(prev => {
                                             const newSet = new Set(prev).add(slotKey)
                                             console.log('Added slot:', slotKey, 'New state:', newSet)
-                                            // Обновляем форму с новым состоянием
-                                            updateFormData("dateSlots", Array.from(newSet).join(','))
+                                            // Обновляем форму только если состояние действительно изменилось
+                                            const newSlotsString = Array.from(newSet).join(',')
+                                            const currentSlotsString = useOrderStore.getState().formData.dateSlots || ""
+                                            if (currentSlotsString !== newSlotsString) {
+                                                updateFormData("dateSlots", newSlotsString)
+                                            }
                                             return newSet
                                         })
                                     }

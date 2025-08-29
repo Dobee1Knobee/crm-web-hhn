@@ -137,6 +137,8 @@ export interface Order {
     city?: string;
     master?: string;
     additionalTechName?: string;
+    dateSlots?: string[];
+    additionalTechSlots?: string[];
     comment?: string;
     total?: number;
     services: OrderService[];
