@@ -1,7 +1,7 @@
 import { useMastersByTeam } from "@/hooks/findMastersByTeam"
 import { useGetSchedule } from '@/hooks/useGetSchedule'
 import { useOrderStore } from "@/stores/orderStore"
-import { ChevronDown, Plus, Trash, Users, Wrench } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronDown, Plus, Trash, Users, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import MasterSchedule from '../../form/components/OrderForm/components/MasterSchedule'
 
@@ -33,6 +33,60 @@ export default function Masters({ team, city }: MastersProps) {
     const [isAddingExtraTech, setIsAddingExtraTech] = useState(false);
     
     const [firstMasterSelectedSlots, setFirstMasterSelectedSlots] = useState<Set<string>>(new Set());
+    const [notification, setNotification] = useState<{
+        type: 'success' | 'warning' | 'error';
+        message: string;
+        show: boolean;
+    }>({ type: 'success', message: '', show: false });
+
+    // Функция для показа уведомлений
+    const showNotification = (type: 'success' | 'warning' | 'error', message: string) => {
+        setNotification({ type, message, show: true });
+        setTimeout(() => {
+            setNotification(prev => ({ ...prev, show: false }));
+        }, 5000);
+    };
+
+    // Функция для автоматического сброса второго мастера при несовместимости
+    const resetSecondMasterIfIncompatible = () => {
+        if (formData.additionalTechName && firstMasterSelectedSlots.size > 0 && schedule) {
+            const isCompatible = isMasterAvailableAsAdditional(formData.additionalTechName);
+            
+            if (!isCompatible) {
+                console.log('🚨 Second master slots became unavailable, resetting...');
+                
+                // Получаем информацию о недоступных слотах для более детального уведомления
+                const targetDate = formData.date || new Date().toISOString().split('T')[0];
+                const masterSchedule = schedule.find((item: any) => item && item.master_name === formData.additionalTechName);
+                const secondMasterSlots = masterSchedule?.schedule?.[targetDate] || [];
+                
+                const selectedTimeSlots = Array.from(firstMasterSelectedSlots).map(slot => {
+                    const parts = slot.split('-');
+                    return `${parts[4]}-${parts[5]}`; // hour-AM/PM
+                });
+                
+                const unavailableSlots = selectedTimeSlots.filter(timeSlot => {
+                    const availableSlots = secondMasterSlots
+                        .filter((slot: { busy: boolean; hour: number; amPM: string }) => !slot.busy)
+                        .map((slot: { busy: boolean; hour: number; amPM: string }) => `${slot.hour}-${slot.amPM}`);
+                    return !availableSlots.includes(timeSlot);
+                });
+                
+                // Показываем уведомление с деталями
+                const unavailableTimes = unavailableSlots.join(', ');
+                showNotification('warning', 
+                    `⚠️ Слоты мастера "${formData.additionalTechName}" стали недоступными ` +
+                    `(время: ${unavailableTimes}). Мастер автоматически удален из команды.`
+                );
+                
+                // Сбрасываем второго мастера и его слоты
+                updateFormData("additionalTechName", "");
+                updateFormData("additionalTechSlots", "");
+                setIsAddingExtraTech(false);
+                setIsAdditionalTechVisible(Boolean(formData.masterName && formData.masterName.length > 0));
+            }
+        }
+    };
 
     useEffect(() => {
         if (formData.additionalTechName && !isAddingExtraTech) {
@@ -130,6 +184,14 @@ export default function Masters({ team, city }: MastersProps) {
         }
     }, [formData.additionalTechName, firstMasterSelectedSlots, schedule, formData.date]);
     
+    // Отслеживаем изменения в расписании и слотах для проверки совместимости
+    useEffect(() => {
+        if (schedule && formData.additionalTechName && firstMasterSelectedSlots.size > 0) {
+            console.log('🔄 Checking compatibility after schedule/slots change...');
+            resetSecondMasterIfIncompatible();
+        }
+    }, [schedule, firstMasterSelectedSlots, formData.additionalTechName]);
+    
     // Функция для проверки доступности мастера как дополнительного на основе выбранных слотов
     const isMasterAvailableAsAdditional = (masterName: string) => {
         if (!schedule || !formData.masterName || firstMasterSelectedSlots.size === 0) return false;
@@ -167,6 +229,41 @@ export default function Masters({ team, city }: MastersProps) {
     
     return (
         <div className="space-y-6">
+            {/* Уведомления */}
+            {notification.show && (
+                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md transition-all duration-300 ${
+                    notification.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' :
+                    notification.type === 'warning' ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' :
+                    'bg-red-50 border border-red-200 text-red-800'
+                }`}>
+                    <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                            {notification.type === 'success' ? (
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                            ) : notification.type === 'warning' ? (
+                                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                            ) : (
+                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                            )}
+                        </div>
+                        <div className="ml-3">
+                            <p className="text-sm font-medium">{notification.message}</p>
+                        </div>
+                        <div className="ml-auto pl-3">
+                            <button
+                                onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <span className="sr-only">Закрыть</span>
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white shadow-md rounded-2xl p-6 m-9 w-full max-w-xl">
                 <div className="flex items-center mb-4">
                     <Wrench className="w-5 h-5 mr-2 text-gray-700" />
@@ -225,7 +322,15 @@ export default function Masters({ team, city }: MastersProps) {
                         <select
                             className="w-full p-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none bg-white"
                             value={formData.additionalTechName}
-                            onChange={(e) => {updateFormData("additionalTechName", e.target.value)}}
+                            onChange={(e) => {
+                                updateFormData("additionalTechName", e.target.value);
+                                if (e.target.value) {
+                                    showNotification('success', 
+                                        `Мастер "${e.target.value}" успешно добавлен в команду! ` +
+                                        `Слоты автоматически синхронизированы.`
+                                    );
+                                }
+                            }}
                         >
                             <option value="">Select a master</option>
                             {availableAdditionalMasters.length > 0 ? (
@@ -264,6 +369,21 @@ export default function Masters({ team, city }: MastersProps) {
                             <span className="font-medium">Selected:</span>
                             <span className="ml-1 text-gray-900">{formData.additionalTechName}</span>
                             <span className="ml-2 text-gray-500">in {city}</span>
+                            {firstMasterSelectedSlots.size > 0 && (
+                                <div className="ml-3 flex items-center">
+                                    {isMasterAvailableAsAdditional(formData.additionalTechName) ? (
+                                        <>
+                                            <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
+                                            <span className="text-green-600 text-xs font-medium">Совместим</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertTriangle className="w-4 h-4 text-red-500 mr-1" />
+                                            <span className="text-red-600 text-xs font-medium">Несовместим</span>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
