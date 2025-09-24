@@ -1,11 +1,12 @@
 // utils/mapOrderToForm.ts
 import type { FormData } from "@/stores/orderStore"; // или продублируй тип
-import type { Order } from "@/types/formDataType"
+import type { Order } from "@/types/formDataType";
 
 export const mapOrderToFormPatch = (o: Order): Partial<FormData> => {
     console.log('mapOrderToFormPatch input:', o);
     console.log('additionalTechName:', o.additionalTechName);
     console.log('dateSlots:', o.dateSlots);
+    console.log('city from order:', o.city);
     
     const result = {
         customerName: o.leadName ?? "",
@@ -28,5 +29,6 @@ export const mapOrderToFormPatch = (o: Order): Partial<FormData> => {
     };
     
     console.log('mapOrderToFormPatch result:', result);
+    console.log('city in result:', result.city);
     return result;
 };

@@ -1,10 +1,10 @@
 "use client"
-import Masters from "@/app/changeOrder/components/Masters"
 import OrderDescription from "@/app/changeOrder/components/OrderDescription"
 import ServicesWindow from "@/app/changeOrder/components/ServicesWindow"
 import Cities from "@/app/form/components/OrderForm/components/Cities"
 import CustomerInfo from "@/app/form/components/OrderForm/components/CustomerInfo"
 import DateAndTime from "@/app/form/components/OrderForm/components/DateAndTime"
+import Masters from "@/app/form/components/OrderForm/components/Masters"
 import { User } from "@/hooks/useUserByAt"
 import { useOrderStore } from "@/stores/orderStore"
 import { useRouter } from "next/navigation"
@@ -124,9 +124,8 @@ export default function OrderForm({ leadId }: Props) {
         <div className="space-y-6">
             <CustomerInfo/>
             <DateAndTime/>
-            {shouldShowCities && (
                 <Cities team={team}/>
-            )}
+       
             <Masters team={team} city={city} />
             <OrderDescription/>
             <ServicesWindow/>

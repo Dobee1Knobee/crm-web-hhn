@@ -2,7 +2,6 @@
 "use client";
 import { DropArea } from "@/app/changeOrder/components/DropArea"
 import Header from "@/app/form/components/Header"
-import OrderForm from "@/app/form/components/OrderForm/OrderForm"
 import Sidebar from "@/app/form/components/Sidebar"
 import StatusPills from "@/app/form/components/StatusPills"
 import "@/app/global.css"
@@ -14,7 +13,9 @@ import {
     TouchSensor, useSensor,
     useSensors
 } from "@dnd-kit/core"
-import { useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import ChangeOrderForm from './components/ChangeOrderForm'
 
 // Временный тип для совместимости с существующим DropArea
 interface ServiceItem {
@@ -30,9 +31,11 @@ interface ServiceItem {
     customPrice?: number;
 }
 
-export default function ChangeOrder() {
+function ChangeOrderContent() {
     const at = "devapi1";
     const user = useUserByAt("devapi1");
+    const searchParams = useSearchParams();
+    const leadId = searchParams?.get('leadId');
 
     // 🏪 Используем ТОЛЬКО store, убираем локальное состояние
     const {
@@ -50,6 +53,7 @@ export default function ChangeOrder() {
         formData,
         resetForm,
         currentLeadID,
+        getByLeadID,
     } = useOrderStore();
 
     // Состояние только для drag & drop UI
@@ -80,7 +84,26 @@ export default function ChangeOrder() {
     );
 
     // Устанавливаем пользователя в store при загрузке
+    useEffect(() => {
+        if (user) {
+            setCurrentUser({
+                userId: user._id,
+                userName: user.name,
+                userAt: user.at,
+                team: user.team.toString(),
+                manager_id: user.manager_id,
+                shift: user.working || false
+            });
+        }
+    }, [user, setCurrentUser]);
 
+    // Загружаем данные заказа при наличии leadId
+    useEffect(() => {
+        if (leadId && leadId !== currentLeadID) {
+            console.log('Loading order data for leadId:', leadId);
+            getByLeadID(leadId);
+        }
+    }, [leadId, currentLeadID, getByLeadID]);
 
     // Обработчик начала перетаскивания
     function handleDragStart(event: DragStartEvent) {
@@ -151,7 +174,7 @@ export default function ChangeOrder() {
                         <div className="flex-1 flex overflow-hidden">
                             {/* Left side - Form */}
                             <div className="w-1/2 p-6 overflow-y-auto">
-                                <OrderForm user={user!} />
+                                <ChangeOrderForm user={user!} leadId={leadId || undefined} />
                             </div>
 
                             {/* Right side - Drop Area */}
@@ -203,5 +226,13 @@ export default function ChangeOrder() {
                 </DragOverlay>
             </DndContext>
         </ProtectedRoute>
+    );
+}
+
+export default function ChangeOrder() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <ChangeOrderContent />
+        </Suspense>
     );
 }

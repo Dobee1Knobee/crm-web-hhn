@@ -24,6 +24,7 @@ export default function Masters({  city }: MastersProps) {
     const {
         formData,
         updateFormData,
+        currentLeadID,
     } = useOrderStore();
     
     useEffect(() => {
@@ -77,7 +78,9 @@ export default function Masters({  city }: MastersProps) {
                 
                 const unavailableSlots = selectedTimeSlots.filter(timeSlot => {
                     const availableSlots = secondMasterSlots
-                        .filter((slot: { busy: boolean; hour: number; amPM: string }) => !slot.busy)
+                        .filter((slot: { busy: boolean; hour: number; amPM: string; lead_id?: string }) => 
+                            !slot.busy || (slot.busy && slot.lead_id === currentLeadID)
+                        )
                         .map((slot: { busy: boolean; hour: number; amPM: string }) => `${slot.hour}-${slot.amPM}`);
                     return !availableSlots.includes(timeSlot);
                 });
@@ -221,7 +224,9 @@ export default function Masters({  city }: MastersProps) {
         
         // Проверяем, что у второго мастера есть доступные слоты в то же время
         const secondMasterAvailableSlots = secondMasterSlots
-            .filter((slot: { busy: boolean; hour: number; amPM: string }) => !slot.busy)
+            .filter((slot: { busy: boolean; hour: number; amPM: string; lead_id?: string }) => 
+                !slot.busy || (slot.busy && slot.lead_id === currentLeadID)
+            )
             .map((slot: { busy: boolean; hour: number; amPM: string }) => `${slot.hour}-${slot.amPM}`);
         
         // Проверяем, что все выбранные слоты доступны у второго мастера

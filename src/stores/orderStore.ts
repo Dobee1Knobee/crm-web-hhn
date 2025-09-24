@@ -395,7 +395,7 @@ const initialFormData: FormData = {
     masterId: '',
     masterName: '',
     additionalTechName: '',
-    additionalTechSlots: '',
+    additionalTechSlots: [],
     description: '',
     teamId: 'Init',
     custom: undefined
@@ -1775,6 +1775,7 @@ export const useOrderStore = create<OrderState>()(
                         custom: formData.custom,
                         master: formData.masterName,
                         additionalTechName: formData.additionalTechName,
+                        additionalTechSlots : formData.additionalTechSlots,
                         manager_id: currentUser?.manager_id,
                         comment: formData.description,
                         services: orderServices,

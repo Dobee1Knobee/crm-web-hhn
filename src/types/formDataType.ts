@@ -208,6 +208,7 @@ export interface CreateOrderData {
     time:string;
     master?: string;
     additionalTechName?: string;
+    additionalTechSlots?: string[];
     manager_id?: string;
 
     // Описание и комментарии
