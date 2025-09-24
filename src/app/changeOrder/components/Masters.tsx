@@ -2,8 +2,8 @@ import { useMastersByTeam } from "@/hooks/findMastersByTeam"
 import { useGetSchedule } from '@/hooks/useGetSchedule'
 import { useOrderStore } from "@/stores/orderStore"
 import { AlertTriangle, CheckCircle, ChevronDown, Plus, Trash, Users, Wrench } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import MasterSchedule from '../../form/components/OrderForm/components/MasterSchedule'
+import { useCallback, useEffect, useState } from 'react'
+import MasterSchedule from '../../changeOrder/components/MasterSchedule'
 
 interface Master {
     name: string;
@@ -15,8 +15,10 @@ interface MastersProps {
     city: string;
 }
 
-export default function Masters({ team, city }: MastersProps) {
-    const masters: Master[] = useMastersByTeam(team);
+export default function Masters({  city }: MastersProps) {
+    const team = useOrderStore(state => state.currentUser?.team);
+    const masters: Master[] = useMastersByTeam(team || "");
+    
     const { schedule, loading, error } = useGetSchedule();
     const [showingSchedule, setShowingSchedule] = useState(false);
     const {
@@ -29,6 +31,9 @@ export default function Masters({ team, city }: MastersProps) {
     }, [formData.masterName]);
     
     const filteredMasters = masters?.filter(master => master.city === city) || [];
+    console.log('filteredMasters', filteredMasters);
+    console.log('team', team);
+    console.log('masters', masters);
     const [isAdditionalTechVisible, setIsAdditionalTechVisible] = useState(false);
     const [isAddingExtraTech, setIsAddingExtraTech] = useState(false);
     
@@ -38,6 +43,11 @@ export default function Masters({ team, city }: MastersProps) {
         message: string;
         show: boolean;
     }>({ type: 'success', message: '', show: false });
+
+    // Мемоизируем callback для предотвращения бесконечных циклов
+    const handleSlotsChange = useCallback((selectedSlots: Set<string>) => {
+        setFirstMasterSelectedSlots(selectedSlots);
+    }, []);
 
     // Функция для показа уведомлений
     const showNotification = (type: 'success' | 'warning' | 'error', message: string) => {
@@ -278,7 +288,16 @@ export default function Masters({ team, city }: MastersProps) {
                     <select
                         className="w-full p-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none bg-white"
                         value={formData.masterName}
-                        onChange={(e) => {updateFormData("masterName", e.target.value);setShowingSchedule(true);setFirstMasterSelectedSlots(new Set())}}
+                        onChange={(e) => {
+                            updateFormData("masterName", e.target.value);
+                            setShowingSchedule(true);
+                            setFirstMasterSelectedSlots(new Set());
+                            // Сбрасываем дополнительные слоты при смене основного мастера
+                            updateFormData("additionalTechName", "");
+                            updateFormData("additionalTechSlots", "");
+                            setIsAddingExtraTech(false);
+                            setIsAdditionalTechVisible(Boolean(e.target.value && e.target.value.length > 0));
+                        }}
                     >
                         <option value="">Select a master</option>
                         {filteredMasters.length > 0 ? (
@@ -395,7 +414,7 @@ export default function Masters({ team, city }: MastersProps) {
                     masterName={formData.masterName}
                     selectedDate={formData.date}
                     schedule={schedule}
-                    onSlotsChange={setFirstMasterSelectedSlots}
+                    onSlotsChange={handleSlotsChange}
                 />
             )}
             
