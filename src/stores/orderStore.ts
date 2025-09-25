@@ -1914,6 +1914,8 @@ export const useOrderStore = create<OrderState>()(
                         manager_id: formData.masterId,
                         master: formData.masterName,
                         additionalTechName: formData.additionalTechName,
+                        dateSlots: formData.dateSlots,
+                        additionalTechSlots: formData.additionalTechSlots,
                         comment: formData.description,
                         team: formData.teamId,
                         custom: formData.custom,

@@ -124,8 +124,9 @@ export default function OrderForm({ leadId }: Props) {
         <div className="space-y-6">
             <CustomerInfo/>
             <DateAndTime/>
+            {shouldShowCities && (
                 <Cities team={team}/>
-       
+            )}
             <Masters team={team} city={city} />
             <OrderDescription/>
             <ServicesWindow/>
